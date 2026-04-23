@@ -15,9 +15,11 @@ void UAttributeComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 }
 
-void UAttributeComponent::RecieveDamage(float _damage)
+void UAttributeComponent::ReceiveDamage(float _damage)
 {
 	health = FMath::Clamp(health - _damage, 0, maxHealth);
+	
+	OnHealthPercentUpdateDelegate.Broadcast(GetHealthPercentage());
 }
 
 float UAttributeComponent::GetHealthPercentage()
@@ -46,9 +48,6 @@ bool UAttributeComponent::RemoveCurrency(int32 AmountOfCurrency)
 	if (Currency - AmountOfCurrency < 0)
 		return false;
 
-	else
-	{
-		Currency -= AmountOfCurrency;
-	}
+	Currency -= AmountOfCurrency;
 	return true;
 }
