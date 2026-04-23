@@ -25,6 +25,7 @@ protected:
 	// -- Functions -----------------------------------------------------------
 	virtual void BeginPlay() override;
 	void ToggleMute();
+	void TogglePause();
 
 	// -- Properties ----------------------------------------------------------
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input)
@@ -36,18 +37,21 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input)
 	TObjectPtr<UInputAction> PauseAction;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<UUserWidget> PauseScreen;
+	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bIsMuted;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
 	float MusicVolume;
-	
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
 	float SfxVolume;
-	
-	UPROPERTY(EditDefaultsOnly,Category = "DEBUG")
-	TObjectPtr<USoundBase> TestMusic;
-	
-	// -- Variables -----------------------------------------------------------
 
+	UPROPERTY(EditDefaultsOnly, Category = "DEBUG")
+	TObjectPtr<USoundBase> TestMusic;
+
+	// -- Variables -----------------------------------------------------------
+	UUserWidget* PauseScreenWidget;
 };

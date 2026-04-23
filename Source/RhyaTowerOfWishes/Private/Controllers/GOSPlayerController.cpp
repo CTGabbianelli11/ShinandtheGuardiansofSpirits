@@ -3,6 +3,7 @@
 #include "AudioDevice.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "Blueprint/UserWidget.h"
 #include "Kismet/GameplayStatics.h"
 
 AGOSPlayerController::AGOSPlayerController()
@@ -19,6 +20,7 @@ void AGOSPlayerController::SetupInputComponent()
 	if (UEnhancedInputComponent* EnhancedInputComponent = CastChecked<UEnhancedInputComponent>(InputComponent))
 	{
 		EnhancedInputComponent->BindAction(MuteAction, ETriggerEvent::Triggered, this, &AGOSPlayerController::ToggleMute);
+		EnhancedInputComponent->BindAction(PauseAction, ETriggerEvent::Triggered, this, &AGOSPlayerController::TogglePause);
 	}
 }
 
@@ -73,4 +75,45 @@ void AGOSPlayerController::ToggleMute()
 	}
 
 	bIsMuted = !bIsMuted;
+}
+
+void AGOSPlayerController::TogglePause()
+{
+
+	if (IsPaused())
+	{
+		bShowMouseCursor = false;
+
+		FInputModeGameOnly InputMode;
+		InputMode.SetConsumeCaptureMouseDown(true);
+		SetInputMode(InputMode);
+
+		// Remove screen and unpause
+		if (PauseScreenWidget)
+		{
+			PauseScreenWidget->SetVisibility(ESlateVisibility::Collapsed);
+		}
+	}
+	else
+	{
+		bShowMouseCursor = true;
+
+		FInputModeGameAndUI InputMode;
+		InputMode.SetHideCursorDuringCapture(false);
+		InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+		SetInputMode(InputMode);
+
+		// Create Widget or unhide it if it's already created
+		if (PauseScreenWidget)
+		{
+			PauseScreenWidget->SetVisibility(ESlateVisibility::Visible);
+		}
+		else
+		{
+			PauseScreenWidget = CreateWidget(this, PauseScreen);
+			PauseScreenWidget->AddToViewport();
+		}
+	}
+
+	UGameplayStatics::SetGamePaused(GetWorld(), !IsPaused());
 }
