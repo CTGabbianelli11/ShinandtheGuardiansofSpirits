@@ -1,6 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
 #include "Enemy/Enemy.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -15,7 +12,6 @@
 #include "NiagaraFunctionLibrary.h"
 #include "Misc/ConfigCacheIni.h"
 
-
 AEnemy::AEnemy()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -26,7 +22,6 @@ AEnemy::AEnemy()
 	GetCapsuleComponent()->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore);
 	*/
 
-
 	// [TwstdTree] Set mesh/capsule collision profile using config-driven name from DefaultGame.ini.
 	// Prevents errors caused by preset name changes in Project Settings.
 	FString MeshProfileName, CapsuleProfileName;
@@ -35,7 +30,7 @@ AEnemy::AEnemy()
 	GetMesh()->SetGenerateOverlapEvents(true);
 	GConfig->GetString(TEXT("Game.CollisionProfiles"), TEXT("EnemyCapsuleProfile"), CapsuleProfileName, GGameIni);
 	GetCapsuleComponent()->SetCollisionProfileName(*CapsuleProfileName);
-	
+
 	hitStopComponent = CreateDefaultSubobject<UAC_HitStop>(TEXT("HitStop"));
 
 	attributes = CreateDefaultSubobject<UAttributeComponent>(TEXT("Attributes"));
@@ -56,25 +51,20 @@ void AEnemy::PlayHitReactMontage(const FName& sectionName)
 void AEnemy::BeginPlay()
 {
 	Super::BeginPlay();
-	
+
 	GetCharacterMovement()->MaxWalkSpeed = GetCharacterMovement()->MaxWalkSpeed * attributes->GetSpeed();
 
 	CustomTimeDilation = attributes->GetSpeed();
 
 	RootComponent->SetWorldScale3D(FVector::One() * attributes->GetSize());
 
-
 	if (hitStopComponent)
 		hitStopComponent->SetStartTimeDilation(CustomTimeDilation);
-
 }
-
-
 
 void AEnemy::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-
 }
 
 void AEnemy::GetHit(const FVector& impactPoint, const FVector& impactDirection)
@@ -86,42 +76,40 @@ void AEnemy::GetHit(const FVector& impactPoint, const FVector& impactDirection)
 
 	if (hitSound)
 	{
-		UGameplayStatics::PlaySoundAtLocation(this, hitSound, GetActorLocation(),1,1,.1f);
+		UGameplayStatics::PlaySoundAtLocation(this, hitSound, GetActorLocation(), 1, 1, .1f);
 	}
 
 	if (HitSystem)
 	{
 		const UWorld* World = GetWorld();
 
-		UNiagaraFunctionLibrary::SpawnSystemAtLocation(World, HitSystem, impactPoint,ToHit.Rotation());
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(World, HitSystem, impactPoint, ToHit.Rotation());
 	}
-	OnCharacterHit(impactPoint,ToHit);
+	OnCharacterHit(impactPoint, ToHit);
 
 	if (attributes && attributes->IsAlive())
 	{
 		//hitStopComponent->BeginHitStop(.2f,0,30,20,true);
-		DirectionalHitReact(impactPoint,ToHit);
+		DirectionalHitReact(impactPoint, ToHit);
 	}
-
-
-
 }
+
 void AEnemy::CharacterDied()
 {
-	if(GetController())
-	GetController()->UnPossess();
+	if (GetController())
+		GetController()->UnPossess();
 
 	StopAnimMontage();
 
 	EnableRagdoll();
 
-	
 	DropCurrency();
 
 	OnCharacterDied();
 
 	GetMesh()->SetAnimInstanceClass(nullptr);
 }
+
 void AEnemy::DropCurrency()
 {
 	if (attributes->GetCurrency() <= 0)
@@ -138,12 +126,10 @@ void AEnemy::DropCurrency()
 		World->SpawnActor<AActor>(CurrencyToDrop, location, GetActorRotation());
 	}
 }
-void AEnemy::DirectionalHitReact(const FVector& impactPoint,const FVector impactDirection)
+
+void AEnemy::DirectionalHitReact(const FVector& impactPoint, const FVector impactDirection)
 {
-
-
 	const FVector Forward = GetActorForwardVector();
-
 
 	//Forard * To hit = |Forward||ToHit| * cos(theta)
 	//Forward
@@ -164,10 +150,10 @@ void AEnemy::DirectionalHitReact(const FVector& impactPoint,const FVector impact
 	FName Section("FromLeft");
 	//if (Theta >= -45.f && Theta < 45.f)
 	//{
-		//Section = FName("FromFront");
+	//Section = FName("FromFront");
 	//}
 	//Note : Uncomment when animations in montage are added
-	if( Theta >= -135.f && Theta < 45.f)
+	if (Theta >= -135.f && Theta < 45.f)
 	{
 		Section = FName("FromRight");
 	}
@@ -186,8 +172,6 @@ void AEnemy::DirectionalHitReact(const FVector& impactPoint,const FVector impact
 
 	//NOTE: Move to health logic later
 
-
-
 	//if (GEngine)
 	//{
 	//	GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Green, FString::Printf(TEXT("Theta: %f"), Theta), false);
@@ -196,6 +180,7 @@ void AEnemy::DirectionalHitReact(const FVector& impactPoint,const FVector impact
 	//UKismetSystemLibrary::DrawDebugArrow(this, GetActorLocation(), GetActorLocation() + Forward * 60.f, 5.f, FColor::Red, 5.f);
 	//UKismetSystemLibrary::DrawDebugArrow(this, GetActorLocation(), GetActorLocation() + ToHit * 60.f, 5.f, FColor::Green, 5.f);
 }
+
 float AEnemy::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
 	if (attributes)
@@ -211,6 +196,7 @@ float AEnemy::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AC
 	}
 	return DamageAmount;
 }
+
 void AEnemy::EnableRagdoll()
 {
 	GetCapsuleComponent()->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
@@ -218,24 +204,21 @@ void AEnemy::EnableRagdoll()
 	UWorld* world = GetWorld();
 	if (world)
 	{
-	ACharacter* character = UGameplayStatics::GetPlayerCharacter(world,0);
+		ACharacter* character = UGameplayStatics::GetPlayerCharacter(world, 0);
 
+		GetMesh()->SetSimulatePhysics(true);
+		GetMesh()->SetCollisionProfileName(TEXT("Ragdoll"));
 
-	GetMesh()->SetSimulatePhysics(true);
-	GetMesh()->SetCollisionProfileName(TEXT("Ragdoll"));
+		// Prevent ragdolled enemy meshes from interfering with the player camera by setting their response to the camera collision channel to 'ignore'.
+		// This ensures the camera can move freely near ragdoll meshes without being blocked.
+		GetMesh()->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
 
-	// Prevent ragdolled enemy meshes from interfering with the player camera by setting their response to the camera collision channel to 'ignore'.
-	// This ensures the camera can move freely near ragdoll meshes without being blocked.
-	GetMesh()->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
-
-	if(character)
-	GetMesh()->AddImpulse((character->GetActorForwardVector() * 200000.f)+FVector::UpVector*20000.f);
+		if (character)
+			GetMesh()->AddImpulse((character->GetActorForwardVector() * 200000.f) + FVector::UpVector * 20000.f);
 	}
-
 }
+
 void AEnemy::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
-
 }
-
