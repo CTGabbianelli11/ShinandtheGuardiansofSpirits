@@ -147,8 +147,8 @@ void AWeapon::OnBoxOverlap(UPrimitiveComponent* OverlappedComponent, AActor* Oth
                 FVector DirectionFromWeaponHolder = HitActor->GetActorLocation() - GetOwner()->GetActorLocation();
                 DirectionFromWeaponHolder.Z = 0;
                 DirectionFromWeaponHolder *= KnockBackAmount;
-
-                HitCharcter->LaunchCharacter(DirectionFromWeaponHolder,false,false);
+                //Removed pushback for characters being hit 
+                //HitCharcter->LaunchCharacter(DirectionFromWeaponHolder,false,false);
             }
 
             if (Cast<ACombatPlayerCharacter>(GetOwner()))
