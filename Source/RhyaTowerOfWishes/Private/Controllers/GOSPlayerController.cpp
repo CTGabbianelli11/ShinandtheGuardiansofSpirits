@@ -1,29 +1,28 @@
-#include "Controllers/TOWPlayerController.h"
+#include "Controllers/GOSPlayerController.h"
 
 #include "AudioDevice.h"
-#include "AudioDeviceManager.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "Kismet/GameplayStatics.h"
 
-ATOWPlayerController::ATOWPlayerController()
+AGOSPlayerController::AGOSPlayerController()
 {
 	bIsMuted = false; // Default to sound on (eventually use settings?)
 	MusicVolume = 1.0;
 	SfxVolume = 1.0;
 }
 
-void ATOWPlayerController::SetupInputComponent()
+void AGOSPlayerController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
 
 	if (UEnhancedInputComponent* EnhancedInputComponent = CastChecked<UEnhancedInputComponent>(InputComponent))
 	{
-		EnhancedInputComponent->BindAction(MuteAction, ETriggerEvent::Triggered, this, &ATOWPlayerController::ToggleMute);
+		EnhancedInputComponent->BindAction(MuteAction, ETriggerEvent::Triggered, this, &AGOSPlayerController::ToggleMute);
 	}
 }
 
-void ATOWPlayerController::BeginPlay()
+void AGOSPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
@@ -39,7 +38,7 @@ void ATOWPlayerController::BeginPlay()
 	}
 }
 
-void ATOWPlayerController::ToggleMute()
+void AGOSPlayerController::ToggleMute()
 {
 	// TODO: if we use mixers, will need to read those settings here - Not currenlty used, but will be with the busses
 	MusicVolume = bIsMuted ? 1.0 : 0.0;

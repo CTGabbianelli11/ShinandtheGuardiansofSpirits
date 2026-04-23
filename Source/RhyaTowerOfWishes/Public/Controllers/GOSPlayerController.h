@@ -1,21 +1,20 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "InputActionValue.h"
 #include "GameFramework/PlayerController.h"
-#include "TOWPlayerController.generated.h"
+#include "GOSPlayerController.generated.h"
 
 class UInputMappingContext;
 class UInputAction;
 
 UCLASS()
-class RHYATOWEROFWISHES_API ATOWPlayerController : public APlayerController
+class RHYATOWEROFWISHES_API AGOSPlayerController : public APlayerController
 {
 	GENERATED_BODY()
 
 public:
 	// -- Functions -----------------------------------------------------------
-	ATOWPlayerController();
+	AGOSPlayerController();
 	virtual void SetupInputComponent() override;
 
 	// -- Properties ----------------------------------------------------------
