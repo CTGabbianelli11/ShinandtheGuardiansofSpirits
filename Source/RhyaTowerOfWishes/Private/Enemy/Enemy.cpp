@@ -145,7 +145,7 @@ void AEnemy::DirectionalHitReact(const FVector& impactPoint, const FVector impac
 	{
 		Theta *= -1.f;
 	}
-	//UKismetSystemLibrary::DrawDebugArrow(this, GetActorLocation(), GetActorLocation() + CrossProduct * 100.f, 5.f, FColor::Blue, 5.f);
+	UKismetSystemLibrary::DrawDebugArrow(this, GetActorLocation(), GetActorLocation() + CrossProduct * 100.f, 5.f, FColor::Blue, 5.f);
 
 	FName Section("FromLeft");
 	//if (Theta >= -45.f && Theta < 45.f)
