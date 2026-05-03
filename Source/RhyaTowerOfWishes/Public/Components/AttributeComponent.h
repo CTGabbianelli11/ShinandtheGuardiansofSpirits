@@ -46,6 +46,7 @@ private:
 	int32 Currency = 0;
 
 public:
+	UFUNCTION(BlueprintCallable)
 	void ReceiveDamage(float _damage);
 
 	UFUNCTION(BlueprintCallable, BlueprintPure)

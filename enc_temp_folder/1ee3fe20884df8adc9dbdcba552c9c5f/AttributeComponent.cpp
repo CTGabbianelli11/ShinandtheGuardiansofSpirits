@@ -1,5 +1,4 @@
 #include "Components/AttributeComponent.h"
-#include "Interfaces/DeathInterface.h"
 
 UAttributeComponent::UAttributeComponent()
 {
@@ -23,11 +22,6 @@ void UAttributeComponent::ReceiveDamage(float _damage)
 	health = FMath::Clamp(health - _damage, 0, maxHealth);
 	
 	OnHealthPercentUpdateDelegate.Broadcast(GetHealthPercentage());
-
-	if (Cast<IDeathInterface>(GetOwner()) && health <= 0)
-	{
-		Cast<IDeathInterface>(GetOwner())->CharacterDied();
-	}
 }
 
 float UAttributeComponent::GetHealthPercentage()
