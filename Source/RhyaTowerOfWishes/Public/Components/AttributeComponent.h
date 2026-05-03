@@ -22,6 +22,9 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Actor Attributes")
 	float healthMultiplier = 1.0f;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Actor Attributes")
+	float magicMultiplier = 1.0f;
 
 public:
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
@@ -35,6 +38,12 @@ private:
 
 	UPROPERTY(EditAnywhere, Category = "Actor Attributes")
 	int maxHealth = 100;
+	
+	UPROPERTY(EditAnywhere, Category = "Actor Attributes")
+    int magic = 100;
+    
+    UPROPERTY(EditAnywhere, Category = "Actor Attributes")
+    int maxMagic = 100;
 
 	UPROPERTY(EditAnywhere, Category = "Actor Attributes")
 	float size = 1;
@@ -53,6 +62,15 @@ public:
 	float GetHealthPercentage();
 	float GetSpeed() { return speed; };
 	bool IsAlive();
+	
+	UFUNCTION(BlueprintCallable)
+	void AddMagic(float amount);
+	UFUNCTION(BlueprintCallable)
+	bool RemoveMagic(float amount);
+	void ApplyMagicMultiplier();
+	UFUNCTION(BlueprintCallable, BlueprintPure)
+	float GetMagicPercentage();
+	
 
 	UFUNCTION(BlueprintCallable, BlueprintPure)
 	FORCEINLINE float GetSize() const { return size; };

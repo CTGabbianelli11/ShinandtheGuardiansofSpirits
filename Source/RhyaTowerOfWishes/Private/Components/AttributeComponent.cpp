@@ -46,6 +46,33 @@ void UAttributeComponent::ApplyHealthMultiplier()
 	health = maxHealth;
 }
 
+void UAttributeComponent::AddMagic(float amount)
+{
+	magic = FMath::Clamp(magic + amount, 0, maxMagic);
+	
+}
+
+bool UAttributeComponent::RemoveMagic(float amount)
+{
+	if (magic - amount < 0)
+		return false;
+
+	magic -= amount;
+	return true;
+}
+
+void UAttributeComponent::ApplyMagicMultiplier()
+{
+	maxMagic *= magicMultiplier;
+	magic = maxMagic;
+}
+
+float UAttributeComponent::GetMagicPercentage()
+{
+	return magic / maxMagic;
+}
+
+
 void UAttributeComponent::AddCurrency(int32 AmountOfCurrency)
 {
 	Currency += AmountOfCurrency;
