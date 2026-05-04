@@ -53,7 +53,7 @@ public:
 
     // Spawn from DataAsset
     UFUNCTION(BlueprintCallable, Category = "Weapon")
-    void SpawnAndEquipWeapon(TSubclassOf<AWeapon> Weapon);
+    AWeapon* SpawnAndEquipWeapon(TSubclassOf<AWeapon> Weapon);
 
     UAttributeComponent* GetAttributes() { return attributeComponent; }
 

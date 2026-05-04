@@ -112,19 +112,21 @@ void ACombatPlayerCharacter::EquipExistingWeapon(AWeapon* WeaponInstance)
     EquipWeapon(WeaponInstance);
 }
 
-void ACombatPlayerCharacter::SpawnAndEquipWeapon(TSubclassOf<AWeapon> Weapon)
+AWeapon* ACombatPlayerCharacter::SpawnAndEquipWeapon(TSubclassOf<AWeapon> Weapon)
 { 
-    if (!Weapon) return;
+    if (!Weapon) return nullptr;
 
 
 
     UWorld* World = GetWorld();
-    if (!World) return;
+    if (!World) return nullptr;
 
     AWeapon* NewWeapon = World->SpawnActor<AWeapon>(Weapon);
-    if (!NewWeapon) return;
+    if (!NewWeapon) return nullptr;
 
     EquipWeapon(NewWeapon);
+
+    return NewWeapon;
 }
 
 
