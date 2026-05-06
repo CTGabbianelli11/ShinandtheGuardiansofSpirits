@@ -129,6 +129,17 @@ AWeapon* ACombatPlayerCharacter::SpawnAndEquipWeapon(TSubclassOf<AWeapon> Weapon
     return NewWeapon;
 }
 
+void ACombatPlayerCharacter::SetAttackNumber(int AttackNumber)
+{
+    comboIndex = AttackNumber;
+    OnComboIndexChanged.Broadcast(comboIndex);
+}
+
+int ACombatPlayerCharacter::GetAttackNumber()
+{
+    return comboIndex;
+}
+
 
 void ACombatPlayerCharacter::Attack(const FInputActionValue& /*Value*/)
 {
@@ -294,7 +305,7 @@ void ACombatPlayerCharacter::PlayAttackMontage()
 void ACombatPlayerCharacter::AttackEnd()
 {
     actionState = EactionState::EAS_Unoccupied;
-    attackNumber = 0;
+    SetAttackNumber(0);
 }
 
 void ACombatPlayerCharacter::StartInputBuffer()
@@ -309,9 +320,9 @@ void ACombatPlayerCharacter::EndBuffer()
 
 FName ACombatPlayerCharacter::GetCurrentAttack()
 {
-    attackNumber++;
-    if (attackNumber > 3) attackNumber = 1;
-    return FName("Attack " + FString::FromInt(attackNumber));
+    SetAttackNumber(comboIndex+1);
+    if (comboIndex > 3) comboIndex = 1;
+    return FName("Attack " + FString::FromInt(comboIndex));
 }
 
 void ACombatPlayerCharacter::Tick(float DeltaTime)

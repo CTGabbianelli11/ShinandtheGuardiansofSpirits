@@ -24,6 +24,8 @@ class UWeaponDataAsset;
 class UTimelineComponent;
 class UAC_HitStop;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnComboAttackChanged, int, ComboIndex);
+
 UCLASS()
 class RHYATOWEROFWISHES_API ACombatPlayerCharacter : public ACharacter, public IPickupInterface, public IHitInterface, public IDeathInterface
 {
@@ -35,10 +37,16 @@ public:
     virtual void Tick(float DeltaTime) override;
     virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
+
+
     // Interface overrides
     virtual void GetHit(const FVector& impactPoint, const FVector& impactDirection) override;
 
     virtual void CharacterDied() override;
+
+    // BlueprintAssignable delegates
+    UPROPERTY(BlueprintAssignable, Category = "Events")
+    FOnComboAttackChanged OnComboIndexChanged;
 
     //Combat Helpers
     void MovePlayerToEnemy(AActor* player, AActor* enemy);
@@ -56,6 +64,10 @@ public:
     AWeapon* SpawnAndEquipWeapon(TSubclassOf<AWeapon> Weapon);
 
     UAttributeComponent* GetAttributes() { return attributeComponent; }
+
+    void SetAttackNumber(int AttackNumber);
+    UFUNCTION(BlueprintPure, Category = "ComboIndex")
+    int GetAttackNumber();
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input)
     UAC_HitStop* hitStopComponent;
@@ -90,10 +102,10 @@ protected:
     UInputAction* AttackAction;
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input)
     UInputAction* DodgeAction;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input)
+    int maxComboNumber = 3;
 
-
-
-    int attackNumber = 0;
+    int comboIndex = 0;
 
     UFUNCTION(BlueprintImplementableEvent)
     void CharacterDiedEvent();
