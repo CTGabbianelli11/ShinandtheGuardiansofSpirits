@@ -119,7 +119,7 @@ protected:
 
     void EquipWeapon(AWeapon* overlappingWeapon);
     void Attack(const FInputActionValue& Value);
-    void Dodge(const FInputActionValue& Value);
+    void DefensiveAction(const FInputActionValue& Value);
 
 
     void PlayAttackMontage();
@@ -132,9 +132,10 @@ protected:
     UFUNCTION(BlueprintCallable) void AttackEnd();
     UFUNCTION(BlueprintCallable) void EndBuffer();
     UFUNCTION(BlueprintCallable) FName GetCurrentAttack();
-
     UFUNCTION(BlueprintCallable) void StartDodge();
     UFUNCTION(BlueprintCallable) void EndDodge();
+    UFUNCTION(BlueprintCallable) void StartBlock();
+    UFUNCTION(BlueprintCallable) void EndBlock();
 
     bool CanAttack();
 
@@ -160,6 +161,8 @@ private:
     UAnimMontage* AttackMontage;
     UPROPERTY(EditDefaultsOnly, Category = "Montages")
     UAnimMontage* DodgeMontage;
+    UPROPERTY(EditDefaultsOnly, Category = "Montages")
+    UAnimMontage* BlockMontage;
 
     UPROPERTY(EditDefaultsOnly, Category = "Montages")
     UAnimMontage* HitReactMontage;

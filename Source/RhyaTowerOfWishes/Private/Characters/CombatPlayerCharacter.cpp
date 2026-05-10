@@ -62,6 +62,9 @@ void ACombatPlayerCharacter::Move(const FInputActionValue& Value)
 
     movementVector = Value.Get<FVector2D>();
 
+    GEngine->AddOnScreenDebugMessage(0, 1.f, FColor::Red, FString::Printf(TEXT("%f"), movementVector.Size()));
+
+
     const FRotator controlRotation = GetControlRotation();
     YawRotation = FRotator(0.f, controlRotation.Yaw, 0.f);
 
@@ -205,14 +208,29 @@ void ACombatPlayerCharacter::Attack(const FInputActionValue& /*Value*/)
     }
 }
 
-void ACombatPlayerCharacter::Dodge(const FInputActionValue& Value)
+void ACombatPlayerCharacter::DefensiveAction(const FInputActionValue& Value)
 {
-    if (actionState == EactionState::EAS_Dodging)
+    if (actionState == EactionState::EAS_Dodging || actionState == EactionState::EAS_Blocking)
         return;
     if (actionState == EactionState::EAS_Comboing || actionState == EactionState::EAS_Attacking)
         AttackEnd();
 
+    GEngine->AddOnScreenDebugMessage(0, 1.f, FColor::Red, FString::Printf(TEXT("Input : %s"), *GetCharacterMovement()->GetLastInputVector().ToString()));
 
+    if (GetCharacterMovement()->GetLastInputVector() != FVector::Zero())
+        StartDodge();
+    else
+    {
+        StartBlock();
+    }
+
+
+
+
+}
+
+void ACombatPlayerCharacter::StartDodge()
+{
     actionState = EactionState::EAS_Dodging;
 
 
@@ -221,16 +239,25 @@ void ACombatPlayerCharacter::Dodge(const FInputActionValue& Value)
     if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
     {
         AnimInstance->Montage_Play(DodgeMontage);
-        StartDodge();
     }
 }
 
-void ACombatPlayerCharacter::StartDodge()
+void ACombatPlayerCharacter::EndDodge()
 {
-
+    actionState = EactionState::EAS_Unoccupied;
 }
 
-void ACombatPlayerCharacter::EndDodge()
+void ACombatPlayerCharacter::StartBlock()
+{
+    actionState = EactionState::EAS_Blocking;
+
+    if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
+    {
+        AnimInstance->Montage_Play(BlockMontage);
+    }
+}
+
+void ACombatPlayerCharacter::EndBlock()
 {
     actionState = EactionState::EAS_Unoccupied;
 }
@@ -342,7 +369,7 @@ void ACombatPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerIn
         EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Triggered, this, &ACombatPlayerCharacter::Jump);
         EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Triggered, this, &ACombatPlayerCharacter::Interact);
         EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Triggered, this, &ACombatPlayerCharacter::Attack);
-        EnhancedInputComponent->BindAction(DodgeAction, ETriggerEvent::Triggered, this, &ACombatPlayerCharacter::Dodge);
+        EnhancedInputComponent->BindAction(DodgeAction, ETriggerEvent::Triggered, this, &ACombatPlayerCharacter::DefensiveAction);
     }
 }
 
