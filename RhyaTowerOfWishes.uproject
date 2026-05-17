@@ -29,6 +29,10 @@
 		{
 			"Name": "MetasoundExperimental",
 			"Enabled": true
+		},
+		{
+			"Name": "FMODStudioOpenXR",
+			"Enabled": false
 		}
 	]
 }
