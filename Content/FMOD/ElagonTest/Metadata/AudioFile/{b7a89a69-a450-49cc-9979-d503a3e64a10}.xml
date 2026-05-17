@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<objects serializationModel="Studio.02.03.00">
+	<object class="AudioFile" id="{b7a89a69-a450-49cc-9979-d503a3e64a10}">
+		<property name="assetPath">
+			<value>Ice, Break, Ice Cracking, Push 04 SND112317.wav</value>
+		</property>
+		<property name="frequencyInKHz">
+			<value>48</value>
+		</property>
+		<property name="channelCount">
+			<value>2</value>
+		</property>
+		<property name="length">
+			<value>0.70652083333333338</value>
+		</property>
+		<relationship name="masterAssetFolder">
+			<destination>{ed806233-522b-4295-8b93-c13b4a174228}</destination>
+		</relationship>
+	</object>
+</objects>

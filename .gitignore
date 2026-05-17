@@ -1,6 +1,16 @@
 # Visual Studio 2015 user specific files
 .vs/
 
+# macOS metadata files
+.DS_Store
+._*
+
+# FMOD local/generated data
+Content/FMOD/**/.cache/
+Content/FMOD/**/.user/
+Content/FMOD/**/.unsaved/
+Content/FMOD/**/.restore*/
+
 # Compiled Object files
 *.slo
 *.lo
