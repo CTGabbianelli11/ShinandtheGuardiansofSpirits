@@ -1,6 +1,10 @@
 # Visual Studio 2015 user specific files
 .vs/
 
+# macOS metadata files
+.DS_Store
+._*
+
 # Compiled Object files
 *.slo
 *.lo
