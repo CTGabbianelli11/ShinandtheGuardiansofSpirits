@@ -15,12 +15,9 @@ AWeapon::AWeapon()
     // --- Class-owned Components ---
     WeaponBoxComponent = CreateDefaultSubobject<UBoxComponent>(TEXT("Weapon Box Collider"));
     WeaponBoxComponent->SetupAttachment(RootComponent);
-    WeaponBoxComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    WeaponBoxComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    WeaponBoxComponent->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Overlap);
 
-    // [TwstdTree] set collisions to Enemy Collision Channel only
-    WeaponBoxComponent->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
-    WeaponBoxComponent->SetCollisionResponseToChannel(ECollisionChannel::ECC_GameTraceChannel1, ECollisionResponse::ECR_Overlap);
-    WeaponBoxComponent->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Ignore);
 
     BoxTraceStart = CreateDefaultSubobject<USceneComponent>(TEXT("Box Trace Start"));
     BoxTraceStart->SetupAttachment(RootComponent);
@@ -107,19 +104,16 @@ void AWeapon::OnBoxOverlap(UPrimitiveComponent* OverlappedComponent, AActor* Oth
     FVector HalfSize = WeaponBoxComponent->GetScaledBoxExtent();
     HalfSize.Z = 10.f;
 
-    // [TwstdTree] Convert ECC_GameTraceChannel1 to EObjectTypeQuery
-    TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
-    ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_GameTraceChannel1));
-     UKismetSystemLibrary::BoxTraceSingleForObjects(
+     UKismetSystemLibrary::BoxTraceSingle(
         this,
         Start,
         End,
         HalfSize,
         BoxTraceStart ? BoxTraceStart->GetComponentRotation() : FRotator::ZeroRotator,
-        ObjectTypes,
+        ETraceTypeQuery::TraceTypeQuery1,
         false,
         ActorsToIgnore,
-        EDrawDebugTrace::None,
+        EDrawDebugTrace::ForDuration,
         BoxHit,
         true
     );
@@ -135,10 +129,12 @@ void AWeapon::OnBoxOverlap(UPrimitiveComponent* OverlappedComponent, AActor* Oth
             UDamageType::StaticClass()
         );
 
+        bool hitInterfaceImplemented =
+            HitActor->Implements<UHitInterface>();
         // Post-damage hit reaction
-        if (IHitInterface* HitInterface = Cast<IHitInterface>(HitActor))
+        if (hitInterfaceImplemented)
         {
-            HitInterface->GetHit(BoxHit.ImpactPoint,BoxHit.ImpactNormal); 
+            IHitInterface::Execute_GetHit(HitActor,BoxHit.ImpactPoint,BoxHit.ImpactNormal);
             
             if (Cast<ACharacter>(HitActor))
             {

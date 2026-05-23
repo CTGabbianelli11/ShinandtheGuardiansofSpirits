@@ -18,7 +18,7 @@ void UAttributeComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 
 void UAttributeComponent::ReceiveDamage(float _damage)
 {
-	GEngine->AddOnScreenDebugMessage(0, 2.f, FColor::Red, FString("Hit"));
+	//GEngine->AddOnScreenDebugMessage(0, 2.f, FColor::Red, FString("Hit"));
 
 	health = FMath::Clamp(health - _damage, 0, maxHealth);
 	

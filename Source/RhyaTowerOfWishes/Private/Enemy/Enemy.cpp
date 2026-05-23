@@ -15,21 +15,12 @@
 AEnemy::AEnemy()
 {
 	PrimaryActorTick.bCanEverTick = true;
-	/*
+
 	GetMesh()->SetCollisionObjectType(ECollisionChannel::ECC_WorldDynamic);
 	GetMesh()->SetCollisionResponseToChannel(ECollisionChannel::ECC_Visibility, ECollisionResponse::ECR_Block);
 	GetMesh()->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore);
 	GetCapsuleComponent()->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore);
-	*/
 
-	// [TwstdTree] Set mesh/capsule collision profile using config-driven name from DefaultGame.ini.
-	// Prevents errors caused by preset name changes in Project Settings.
-	FString MeshProfileName, CapsuleProfileName;
-	GConfig->GetString(TEXT("Game.CollisionProfiles"), TEXT("EnemyMeshProfile"), MeshProfileName, GGameIni);
-	GetMesh()->SetCollisionProfileName(FName(*MeshProfileName));
-	GetMesh()->SetGenerateOverlapEvents(true);
-	GConfig->GetString(TEXT("Game.CollisionProfiles"), TEXT("EnemyCapsuleProfile"), CapsuleProfileName, GGameIni);
-	GetCapsuleComponent()->SetCollisionProfileName(*CapsuleProfileName);
 
 	hitStopComponent = CreateDefaultSubobject<UAC_HitStop>(TEXT("HitStop"));
 
@@ -67,7 +58,7 @@ void AEnemy::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 }
 
-void AEnemy::GetHit(const FVector& impactPoint, const FVector& impactDirection)
+void AEnemy::GetHit_Implementation(const FVector& impactPoint, const FVector& impactDirection)
 {
 	//DRAW_SPHERE_COLOR(impactPoint,FColor::Orange);
 

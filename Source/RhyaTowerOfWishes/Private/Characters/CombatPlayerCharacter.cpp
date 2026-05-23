@@ -163,44 +163,6 @@ void ACombatPlayerCharacter::Attack(const FInputActionValue& /*Value*/)
             movementVector.X
         );
 
-        TArray<AActor*> ActorsInFront;
-        FHitResult Hit;
-        UWorld* world = GetWorld();
-        if (world)
-        {
-
-            for (int i = -10; i < 10; i++)
-            {
-                // [TwstdTree] Convert ECC_GameTraceChannel1 to EObjectTypeQuery
-                TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
-                ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_GameTraceChannel1));
-                UKismetSystemLibrary::LineTraceSingleForObjects(
-                    world,
-                    GetActorLocation(),
-                    GetActorLocation() + UKismetMathLibrary::GreaterGreater_VectorRotator(GetActorForwardVector(), FRotator(0, 5 * i, 0)) * 400.f,
-                     ObjectTypes,
-                    false,
-                    ActorsInFront,
-                    EDrawDebugTrace::None,
-                    Hit,
-                    true);
-                if (Hit.GetActor() && Cast<AEnemy>(Hit.GetActor()))
-                {
-                    ActorsInFront.AddUnique(Hit.GetActor());
-                    //DRAW_SPHERE_COLOR(Hit.GetActor()->GetActorLocation(), FColor::Orange);
-                }
-            }
-        }
-
-        if (ActorsInFront.Num() > 0)
-        {
-            MovePlayerToEnemy(this, ActorsInFront[0]);
-        }
-        else
-        {
-            //SetActorRotation(UKismetMathLibrary::Conv_VectorToRotator(GetLastMovementInputVector()));
-        }
-
         equippedWeapon->ignoreActors.Empty();
 
         PlayAttackMontage();
@@ -269,7 +231,7 @@ bool ACombatPlayerCharacter::CanAttack()
         && state != ECharacterState::ECS_Unequipped;
 }
 
-void ACombatPlayerCharacter::GetHit(const FVector& impactPoint, const FVector& impactDirection)
+void ACombatPlayerCharacter::GetHit_Implementation(const FVector& impactPoint, const FVector& impactDirection)
 {
     CharacterHit(impactPoint, impactDirection);
 
