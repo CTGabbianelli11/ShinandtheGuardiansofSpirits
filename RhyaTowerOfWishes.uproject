@@ -29,6 +29,10 @@
 		{
 			"Name": "MetasoundExperimental",
 			"Enabled": true
+		},
+		{
+			"Name": "AudioModulation",
+			"Enabled": true
 		}
 	]
 }
