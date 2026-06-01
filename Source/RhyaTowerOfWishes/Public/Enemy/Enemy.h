@@ -50,7 +50,9 @@ public:
 	/**
 	Play montage functions
 	*/
+	UFUNCTION(BlueprintNativeEvent,BlueprintCallable)
 	void PlayHitReactMontage(const FName& sectionName);
+	void PlayHitReactMontage_Implementation(const FName& sectionName);
 
 protected:
 	virtual void BeginPlay() override;
@@ -62,14 +64,14 @@ protected:
 	float DamageMultiplier;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy Stats")
 	float BaseDamage;
-
-private:
 	/*
 	*Animation Montages
 	*/
 
-	UPROPERTY(EditDefaultsOnly, Category = "Montages")
+	UPROPERTY(EditDefaultsOnly,BlueprintReadOnly, Category = "Montages")
 	UAnimMontage* HitReactMontage;
+private:
+
 
 	/*
 	VFX

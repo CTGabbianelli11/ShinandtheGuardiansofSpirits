@@ -27,7 +27,7 @@ AEnemy::AEnemy()
 	attributes = CreateDefaultSubobject<UAttributeComponent>(TEXT("Attributes"));
 }
 
-void AEnemy::PlayHitReactMontage(const FName& sectionName)
+void AEnemy::PlayHitReactMontage_Implementation(const FName& sectionName)
 {
 	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
 	if (AnimInstance && HitReactMontage)
