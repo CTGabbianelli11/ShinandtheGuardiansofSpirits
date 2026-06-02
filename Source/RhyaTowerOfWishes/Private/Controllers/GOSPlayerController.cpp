@@ -88,10 +88,13 @@ void AGOSPlayerController::TogglePause()
 		InputMode.SetConsumeCaptureMouseDown(true);
 		SetInputMode(InputMode);
 
-		// Remove screen and unpause
+		// Remove the pause screen and unpause. Destroying it (instead of just
+		// hiding) means the next pause recreates a fresh CommonActivatableWidget,
+		// which re-activates and restores gamepad focus (DesiredFocusWidget).
 		if (PauseScreenWidget)
 		{
-			PauseScreenWidget->SetVisibility(ESlateVisibility::Collapsed);
+			PauseScreenWidget->RemoveFromParent();
+			PauseScreenWidget = nullptr;
 		}
 	}
 	else
@@ -103,14 +106,11 @@ void AGOSPlayerController::TogglePause()
 		InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 		SetInputMode(InputMode);
 
-		// Create Widget or unhide it if it's already created
+		// Create the pause screen fresh so the CommonActivatableWidget auto-activates
+		// and grabs gamepad focus. It is destroyed again on unpause (above).
+		PauseScreenWidget = CreateWidget(this, PauseScreen);
 		if (PauseScreenWidget)
 		{
-			PauseScreenWidget->SetVisibility(ESlateVisibility::Visible);
-		}
-		else
-		{
-			PauseScreenWidget = CreateWidget(this, PauseScreen);
 			PauseScreenWidget->AddToViewport();
 		}
 	}
