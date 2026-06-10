@@ -25,6 +25,14 @@ protected:
 	// -- Functions -----------------------------------------------------------
 	virtual void BeginPlay() override;
 	void ToggleMute();
+
+	/**
+	 * Toggle the pause screen + game pause. Exposed to Blueprint so the pause menu's
+	 * Resume button (and its CommonUI back handler) can close the menu through the
+	 * same path the Pause input uses — restoring input mode and clearing the widget,
+	 * which a plain self-RemoveFromParent in the widget would not do.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "UI")
 	void TogglePause();
 
 	// -- Properties ----------------------------------------------------------
@@ -43,15 +51,10 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bIsMuted;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
-	float MusicVolume;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
-	float SfxVolume;
-
 	UPROPERTY(EditDefaultsOnly, Category = "DEBUG")
 	TObjectPtr<USoundBase> TestMusic;
 
 	// -- Variables -----------------------------------------------------------
-	UUserWidget* PauseScreenWidget;
+	UPROPERTY()
+	TObjectPtr<UUserWidget> PauseScreenWidget;
 };
