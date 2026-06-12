@@ -42,6 +42,10 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Config", meta = (AllowPrivateAccess = "true"))
     float  KnockBackAmount = 10.0f;
 
+    /** Magic per enemy hit for a player wielder. Whole numbers — magic is stored as an int. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Config")
+    float MagicGainPerHit = 10.f;
+
     /** Accessor used in anim notifies / gameplay to gate collisions */
     UFUNCTION(BlueprintPure, Category = "Weapon|Collision")
     UBoxComponent* GetWeaponBoxComponent() const { return WeaponBoxComponent; }

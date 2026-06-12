@@ -37,7 +37,10 @@ public:
     virtual void Tick(float DeltaTime) override;
     virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
-
+    // Blocking gate for all damage sources: a blocked frontal hit returns without
+    // calling Super, so the BP AnyDamage -> ReceiveDamage path never fires.
+    virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
+                             AController* EventInstigator, AActor* DamageCauser) override;
 
     // Interface overrides
     virtual void GetHit_Implementation(const FVector& impactPoint, const FVector& impactDirection) override;
@@ -112,6 +115,15 @@ protected:
     UFUNCTION(BlueprintImplementableEvent)
     void CharacterHit(const FVector& impactPoint, const FVector& impactDirection);
 
+    // Blocked-hit counterpart to CharacterHit, for BP VFX/SFX on a successful deflect.
+    UFUNCTION(BlueprintImplementableEvent)
+    void CharacterBlockedHit(const FVector& impactPoint, const FVector& impactDirection);
+
+    bool IsAttackerInBlockCone(const AActor* Attacker) const;
+    bool IsDirectionInBlockCone(const FVector& ToSource) const;
+    void PlayBlockImpactMontage();
+    void OnBlockImpactMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+
     // Input Callbacks
     void Move(const FInputActionValue& Value);
     void Look(const FInputActionValue& Value);
@@ -166,6 +178,22 @@ private:
 
     UPROPERTY(EditDefaultsOnly, Category = "Montages")
     UAnimMontage* HitReactMontage;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Montages")
+    UAnimMontage* BlockImpactMontage;
+
+    // Half-angle of the frontal block cone, measured from actor forward in the ground plane.
+    UPROPERTY(EditDefaultsOnly, Category = "Combat|Block", meta = (ClampMin = "0.0", ClampMax = "180.0"))
+    float BlockAngleDegrees = 60.f;
+
+    // 0 = full deflect; > 0 = that fraction leaks through as chip damage.
+    UPROPERTY(EditDefaultsOnly, Category = "Combat|Block", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float BlockedDamageMultiplier = 0.f;
+
+    // Per-hit block verdict, published by whichever of TakeDamage/GetHit runs
+    // first that frame, so the damage gate and the react can't disagree.
+    bool bBlockedLastHit = false;
+    uint64 LastBlockVerdictFrame = 0;
 
 public:
 

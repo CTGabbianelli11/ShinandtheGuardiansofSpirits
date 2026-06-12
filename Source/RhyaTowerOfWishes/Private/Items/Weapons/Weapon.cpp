@@ -9,6 +9,10 @@
 #include "Kismet/KismetSystemLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "Components/AC_HitStop.h"
+#include "Components/AttributeComponent.h"
+#include "Enemy/Enemy.h"
+#include "DrawDebugHelpers.h"
+#include "HAL/IConsoleManager.h"
 
 AWeapon::AWeapon()
 {
@@ -120,6 +124,11 @@ void AWeapon::OnBoxOverlap(UPrimitiveComponent* OverlappedComponent, AActor* Oth
 
     if (AActor* HitActor = BoxHit.GetActor())
     {
+        // Read liveness before ApplyDamage: a killing blow still awards magic.
+        AEnemy* HitEnemy = Cast<AEnemy>(HitActor);
+        const bool bTargetWasAlive =
+            HitEnemy && HitEnemy->GetAttributes() && HitEnemy->GetAttributes()->IsAlive();
+
         // Apply damage
         UGameplayStatics::ApplyDamage(
             HitActor,
@@ -128,6 +137,46 @@ void AWeapon::OnBoxOverlap(UPrimitiveComponent* OverlappedComponent, AActor* Oth
             this,
             UDamageType::StaticClass()
         );
+
+        // ignoreActors limits this to one award per enemy per swing.
+        bool bAwardedMagic = false;
+        bool bMagicChanged = false;
+        if (bTargetWasAlive)
+        {
+            if (ACombatPlayerCharacter* PlayerOwner = Cast<ACombatPlayerCharacter>(GetOwner()))
+            {
+                if (UAttributeComponent* PlayerAttributes = PlayerOwner->GetAttributes())
+                {
+                    const float MagicPctBefore = PlayerAttributes->GetMagicPercentage();
+                    PlayerAttributes->AddMagic(MagicGainPerHit);
+                    bAwardedMagic = true;
+                    // AddMagic clamps — don't display a gain that didn't happen.
+                    bMagicChanged = PlayerAttributes->GetMagicPercentage() != MagicPctBefore;
+                }
+            }
+        }
+
+        // Rhya.Debug.Combat is registered in CombatPlayerCharacter.cpp.
+        static IConsoleVariable* CombatDebugCVar =
+            IConsoleManager::Get().FindConsoleVariable(TEXT("Rhya.Debug.Combat"));
+        if (CombatDebugCVar && CombatDebugCVar->GetInt() != 0)
+        {
+            FString Line = FString::Printf(TEXT("%.1f dmg"), damage);
+            if (bAwardedMagic && bMagicChanged)
+            {
+                Line += FString::Printf(TEXT("  +%.0f MP"), MagicGainPerHit);
+            }
+            else if (bAwardedMagic)
+            {
+                Line += TEXT("  (MP full)");
+            }
+            else if (HitEnemy && !bTargetWasAlive)
+            {
+                Line += TEXT("  (corpse - no MP)");
+            }
+            DrawDebugString(GetWorld(), BoxHit.ImpactPoint, Line, nullptr,
+                FColor::Orange, 1.8f, /*bDrawShadow*/ true, /*FontScale*/ 1.25f);
+        }
 
         bool hitInterfaceImplemented =
             HitActor->Implements<UHitInterface>();

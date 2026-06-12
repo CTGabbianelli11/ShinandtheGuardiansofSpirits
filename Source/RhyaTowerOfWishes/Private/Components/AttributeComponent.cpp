@@ -32,7 +32,7 @@ void UAttributeComponent::ReceiveDamage(float _damage)
 
 float UAttributeComponent::GetHealthPercentage()
 {
-	return health / maxHealth;
+	return (float)health / (float)maxHealth;
 }
 
 bool UAttributeComponent::IsAlive()
@@ -49,7 +49,8 @@ void UAttributeComponent::ApplyHealthMultiplier()
 void UAttributeComponent::AddMagic(float amount)
 {
 	magic = FMath::Clamp(magic + amount, 0, maxMagic);
-	
+
+	OnMagicPercentUpdateDelegate.Broadcast(GetMagicPercentage());
 }
 
 bool UAttributeComponent::RemoveMagic(float amount)
@@ -58,6 +59,8 @@ bool UAttributeComponent::RemoveMagic(float amount)
 		return false;
 
 	magic -= amount;
+
+	OnMagicPercentUpdateDelegate.Broadcast(GetMagicPercentage());
 	return true;
 }
 
@@ -69,7 +72,8 @@ void UAttributeComponent::ApplyMagicMultiplier()
 
 float UAttributeComponent::GetMagicPercentage()
 {
-	return magic / maxMagic;
+	// magic/maxMagic are ints — cast to avoid integer division.
+	return (float)magic / (float)maxMagic;
 }
 
 

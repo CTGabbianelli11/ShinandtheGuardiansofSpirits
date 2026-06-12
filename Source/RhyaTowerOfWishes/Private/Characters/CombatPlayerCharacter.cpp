@@ -18,6 +18,25 @@
 #include <Components/TimelineComponent.h>
 #include <Components/AC_HitStop.h>
 #include <Enemy/Enemy.h>
+#include "DrawDebugHelpers.h"
+#include "HAL/IConsoleManager.h"
+
+// Rhya.Debug.Combat 1 — floating hit/block text with the
+// verdict's signal source, attacker arrows, claimed impact points, and the block
+// cone while blocking.
+static TAutoConsoleVariable<int32> CVarCombatDebug(
+    TEXT("Rhya.Debug.Combat"), 0,
+    TEXT("Combat debug overlay: 1 = floating hit/block verdict text, damage numbers, block cone."),
+    ECVF_Cheat);
+
+static void DrawCombatText(const AActor* Anchor, const FString& Text, const FColor& Color)
+{
+    static uint32 Slot = 0;
+    Slot = (Slot + 1) % 3;
+    DrawDebugString(Anchor->GetWorld(),
+                    Anchor->GetActorLocation() + FVector(0.f, 0.f, 120.f + Slot * 26.f),
+                    Text, nullptr, Color, 1.8f, /*bDrawShadow*/ true, /*FontScale*/ 1.25f);
+}
 
 ACombatPlayerCharacter::ACombatPlayerCharacter()
 {
@@ -231,8 +250,137 @@ bool ACombatPlayerCharacter::CanAttack()
         && state != ECharacterState::ECS_Unequipped;
 }
 
+float ACombatPlayerCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
+                                         AController* EventInstigator, AActor* DamageCauser)
+{
+    const bool bCombatDebug = CVarCombatDebug.GetValueOnGameThread() != 0;
+
+    if (actionState == EactionState::EAS_Blocking)
+    {
+        bool bBlocked = false;
+        const TCHAR* VerdictSource = TEXT("");
+        if (DamageCauser)
+        {
+            // DamageCauser is the weapon/projectile, its Owner the wielder. Judge by
+            // position, not impact point — tick-stepped projectiles tunnel past the
+            // capsule and read as "rear".
+            const AActor* Attacker = DamageCauser->GetOwner() ? DamageCauser->GetOwner() : DamageCauser;
+            bBlocked = IsAttackerInBlockCone(Attacker);
+            VerdictSource = TEXT("causer position");
+            if (bCombatDebug)
+            {
+                DrawDebugDirectionalArrow(GetWorld(),
+                    Attacker->GetActorLocation() + FVector(0.f, 0.f, 50.f),
+                    GetActorLocation() + FVector(0.f, 0.f, 50.f),
+                    60.f, bBlocked ? FColor::Green : FColor::Red, false, 1.8f, 0, 2.f);
+            }
+        }
+        else if (LastBlockVerdictFrame == GFrameCounter)
+        {
+            // No causer: use the verdict GetHit published this frame.
+            bBlocked = bBlockedLastHit;
+            VerdictSource = TEXT("GetHit impact point");
+        }
+        else
+        {
+            // No directional info at all (bare ApplyDamage, no GetHit this frame):
+            // favor the block — a held stance failing on missing data feels broken.
+            bBlocked = true;
+            VerdictSource = TEXT("NO directional info -> block favored");
+        }
+
+        // Publish so a following GetHit picks the matching react.
+        bBlockedLastHit = bBlocked;
+        LastBlockVerdictFrame = GFrameCounter;
+
+        if (bBlocked)
+        {
+            const float ChipDamage = DamageAmount * BlockedDamageMultiplier;
+            if (bCombatDebug)
+            {
+                DrawCombatText(this, FString::Printf(TEXT("BLOCKED %.1f -> %.1f  [%s]"),
+                    DamageAmount, ChipDamage, VerdictSource),
+                    ChipDamage > 0.f ? FColor::Yellow : FColor::Green);
+            }
+            if (ChipDamage <= 0.f)
+            {
+                // No Super: OnTakeAnyDamage (BP AnyDamage -> ReceiveDamage) never fires.
+                return 0.f;
+            }
+            return Super::TakeDamage(ChipDamage, DamageEvent, EventInstigator, DamageCauser);
+        }
+
+        // The block break is decided here; GetHit never resets a blocking player's state.
+        actionState = EactionState::EAS_Unoccupied;
+        if (bCombatDebug)
+        {
+            DrawCombatText(this, FString::Printf(TEXT("BLOCK BROKEN  %.1f dmg  [%s]"),
+                DamageAmount, VerdictSource), FColor::Red);
+        }
+    }
+    else if (bCombatDebug)
+    {
+        const FString From = DamageCauser
+            ? FString::Printf(TEXT("from %s"), *DamageCauser->GetName())
+            : FString(TEXT("[no causer]"));
+        DrawCombatText(this, FString::Printf(TEXT("HIT %.1f  %s"), DamageAmount, *From), FColor::Red);
+    }
+
+    return Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+}
+
+bool ACombatPlayerCharacter::IsAttackerInBlockCone(const AActor* Attacker) const
+{
+    return Attacker && IsDirectionInBlockCone(Attacker->GetActorLocation() - GetActorLocation());
+}
+
+bool ACombatPlayerCharacter::IsDirectionInBlockCone(const FVector& ToSource) const
+{
+    FVector Flat = ToSource;
+    Flat.Z = 0.f;
+    const FVector Dir = Flat.GetSafeNormal();
+    if (Dir.IsNearlyZero())
+    {
+        // Source directly above/below: not blocked.
+        return false;
+    }
+
+    const float CosThreshold = FMath::Cos(FMath::DegreesToRadians(BlockAngleDegrees));
+    return FVector::DotProduct(GetActorForwardVector(), Dir) >= CosThreshold;
+}
+
 void ACombatPlayerCharacter::GetHit_Implementation(const FVector& impactPoint, const FVector& impactDirection)
 {
+    // GetHit only picks the react. Consume a same-frame verdict from TakeDamage
+    // if one exists; otherwise judge here and publish for the TakeDamage that follows.
+    bool bBlockedThisHit = false;
+    if (LastBlockVerdictFrame == GFrameCounter)
+    {
+        bBlockedThisHit = bBlockedLastHit;
+    }
+    else
+    {
+        bBlockedThisHit = actionState == EactionState::EAS_Blocking &&
+                          IsDirectionInBlockCone(impactPoint - GetActorLocation());
+        bBlockedLastHit = bBlockedThisHit;
+        LastBlockVerdictFrame = GFrameCounter;
+    }
+
+    if (CVarCombatDebug.GetValueOnGameThread() != 0)
+    {
+        // Dealer-claimed impact point, colored by verdict.
+        DrawDebugSphere(GetWorld(), impactPoint, 8.f, 8,
+            bBlockedThisHit ? FColor::Green : FColor::Red, false, 1.8f);
+    }
+
+    if (bBlockedThisHit)
+    {
+        CharacterBlockedHit(impactPoint, impactDirection);
+        PlayBlockImpactMontage();
+        // actionState stays EAS_Blocking: the next hit blocks without re-pressing.
+        return;
+    }
+
     CharacterHit(impactPoint, impactDirection);
 
     if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
@@ -240,7 +388,37 @@ void ACombatPlayerCharacter::GetHit_Implementation(const FVector& impactPoint, c
         if (HitReactMontage)
         {
             AnimInstance->Montage_Play(HitReactMontage);
-            actionState = EactionState::EAS_Unoccupied;
+            if (actionState != EactionState::EAS_Blocking)
+            {
+                actionState = EactionState::EAS_Unoccupied;
+            }
+        }
+    }
+}
+
+void ACombatPlayerCharacter::PlayBlockImpactMontage()
+{
+    if (!ensureMsgf(BlockImpactMontage, TEXT("%s: BlockImpactMontage is not assigned — blocked hits play no react"), *GetName()))
+    {
+        return;
+    }
+
+    if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
+    {
+        AnimInstance->Montage_Play(BlockImpactMontage);
+        FOnMontageEnded EndDelegate;
+        EndDelegate.BindUObject(this, &ACombatPlayerCharacter::OnBlockImpactMontageEnded);
+        AnimInstance->Montage_SetEndDelegate(EndDelegate, BlockImpactMontage);
+    }
+}
+
+void ACombatPlayerCharacter::OnBlockImpactMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+    if (!bInterrupted && actionState == EactionState::EAS_Blocking && BlockMontage)
+    {
+        if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
+        {
+            AnimInstance->Montage_Play(BlockMontage);
         }
     }
 }
@@ -317,6 +495,20 @@ FName ACombatPlayerCharacter::GetCurrentAttack()
 void ACombatPlayerCharacter::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
+
+    // Block-cone overlay: the edge lines are the exact bounds the verdict uses.
+    if (actionState == EactionState::EAS_Blocking && CVarCombatDebug.GetValueOnGameThread() != 0)
+    {
+        const FVector Center = GetActorLocation() - FVector(0.f, 0.f, GetSimpleCollisionHalfHeight() - 10.f);
+        const FVector Forward = GetActorForwardVector();
+        constexpr float Radius = 150.f;
+        const FVector LeftEdge = Forward.RotateAngleAxis(-BlockAngleDegrees, FVector::UpVector);
+        const FVector RightEdge = Forward.RotateAngleAxis(BlockAngleDegrees, FVector::UpVector);
+        DrawDebugLine(GetWorld(), Center, Center + LeftEdge * Radius, FColor::Cyan, false, -1.f, 0, 1.5f);
+        DrawDebugLine(GetWorld(), Center, Center + RightEdge * Radius, FColor::Cyan, false, -1.f, 0, 1.5f);
+        DrawDebugCircleArc(GetWorld(), Center, Radius, Forward,
+            FMath::DegreesToRadians(BlockAngleDegrees), 24, FColor::Cyan, false, -1.f, 0, 1.5f);
+    }
 }
 
 void ACombatPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)

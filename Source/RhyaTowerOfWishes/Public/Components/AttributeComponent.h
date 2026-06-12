@@ -5,6 +5,7 @@
 #include "AttributeComponent.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_SPARSE_DELEGATE_OneParam(FOnHealthPercentUpdateSignature, UAttributeComponent, OnHealthPercentUpdateDelegate, float, Percentage);
+DECLARE_DYNAMIC_MULTICAST_SPARSE_DELEGATE_OneParam(FOnMagicPercentUpdateSignature, UAttributeComponent, OnMagicPercentUpdateDelegate, float, Percentage);
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class RHYATOWEROFWISHES_API UAttributeComponent : public UActorComponent
@@ -16,6 +17,9 @@ public:
 
 	UPROPERTY(BlueprintAssignable)
 	FOnHealthPercentUpdateSignature OnHealthPercentUpdateDelegate;
+
+	UPROPERTY(BlueprintAssignable)
+	FOnMagicPercentUpdateSignature OnMagicPercentUpdateDelegate;
 	
 protected:
 	virtual void BeginPlay() override;
