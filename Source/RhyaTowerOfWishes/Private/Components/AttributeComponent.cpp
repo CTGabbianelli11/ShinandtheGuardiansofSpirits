@@ -18,13 +18,16 @@ void UAttributeComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 
 void UAttributeComponent::ReceiveDamage(float _damage)
 {
-	//GEngine->AddOnScreenDebugMessage(0, 2.f, FColor::Red, FString("Hit"));
+	const bool bWasAlive = IsAlive();
 
-	health = FMath::Clamp(health - _damage, 0, maxHealth);
-	
+	// Truncation is the established behavior; attributes are ints, damage is float.
+	health = FMath::Clamp((int32)(health - _damage), 0, maxHealth);
+
 	OnHealthPercentUpdateDelegate.Broadcast(GetHealthPercentage());
 
-	if (Cast<IDeathInterface>(GetOwner()) && health <= 0)
+	// Only on the alive->dead transition — corpse hits used to re-fire CharacterDied
+	// (re-ragdoll, repeat death events) on every subsequent damage event.
+	if (bWasAlive && !IsAlive() && Cast<IDeathInterface>(GetOwner()))
 	{
 		Cast<IDeathInterface>(GetOwner())->CharacterDied();
 	}
@@ -42,13 +45,13 @@ bool UAttributeComponent::IsAlive()
 
 void UAttributeComponent::ApplyHealthMultiplier()
 {
-	maxHealth *= healthMultiplier;
+	maxHealth = (int32)(maxHealth * healthMultiplier);
 	health = maxHealth;
 }
 
 void UAttributeComponent::AddMagic(float amount)
 {
-	magic = FMath::Clamp(magic + amount, 0, maxMagic);
+	magic = FMath::Clamp((int32)(magic + amount), 0, maxMagic);
 
 	OnMagicPercentUpdateDelegate.Broadcast(GetMagicPercentage());
 }
@@ -58,7 +61,7 @@ bool UAttributeComponent::RemoveMagic(float amount)
 	if (magic - amount < 0)
 		return false;
 
-	magic -= amount;
+	magic = (int32)(magic - amount);
 
 	OnMagicPercentUpdateDelegate.Broadcast(GetMagicPercentage());
 	return true;
@@ -66,7 +69,7 @@ bool UAttributeComponent::RemoveMagic(float amount)
 
 void UAttributeComponent::ApplyMagicMultiplier()
 {
-	maxMagic *= magicMultiplier;
+	maxMagic = (int32)(maxMagic * magicMultiplier);
 	magic = maxMagic;
 }
 

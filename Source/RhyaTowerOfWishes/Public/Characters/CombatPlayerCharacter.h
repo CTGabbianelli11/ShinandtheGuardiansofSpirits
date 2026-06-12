@@ -4,7 +4,10 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+// EnhancedInput inline code narrows double->float; engine-owned, exempt from UnsafeTypeCastWarningLevel.
+PRAGMA_DISABLE_UNSAFE_TYPECAST_WARNINGS
 #include "InputAction.h"
+PRAGMA_RESTORE_UNSAFE_TYPECAST_WARNINGS
 #include "Characters/CharacterTypes.h"
 #include "Interfaces/PickupInterface.h"
 #include "Interfaces/HitInterface.h"

@@ -2,11 +2,14 @@
 // CPPCharacter.cpp
 #include "Characters/CombatPlayerCharacter.h"
 #include "Animation/AnimMontage.h"
-#include "EnhancedInputSubsystems.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+// EnhancedInput inline code narrows double->float; engine-owned, exempt from UnsafeTypeCastWarningLevel.
+PRAGMA_DISABLE_UNSAFE_TYPECAST_WARNINGS
+#include "EnhancedInputSubsystems.h"
 #include <EnhancedInputComponent.h>
+PRAGMA_RESTORE_UNSAFE_TYPECAST_WARNINGS
 #include "Items/Item.h"
 #include "Components/AttributeComponent.h"
 #include "Items/Weapons/Weapon.h"
@@ -96,20 +99,20 @@ void ACombatPlayerCharacter::Move(const FInputActionValue& Value)
 
     AddMovementInput(
         FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X),
-        movementVector.Y
+        (float)movementVector.Y
     );
 
     AddMovementInput(
         FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y),
-        movementVector.X
+        (float)movementVector.X
     );
 }
 
 void ACombatPlayerCharacter::Look(const FInputActionValue& Value)
 {
     const FVector2D lookValue = Value.Get<FVector2D>();
-    AddControllerYawInput(lookValue.X);
-    AddControllerPitchInput(-lookValue.Y);
+    AddControllerYawInput((float)lookValue.X);
+    AddControllerPitchInput((float)-lookValue.Y);
 }
 
 void ACombatPlayerCharacter::Interact(const FInputActionValue& /*Value*/)
@@ -174,12 +177,12 @@ void ACombatPlayerCharacter::Attack(const FInputActionValue& /*Value*/)
 
         AddMovementInput(
             FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X),
-            movementVector.Y
+            (float)movementVector.Y
         );
 
         AddMovementInput(
             FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y),
-            movementVector.X
+            (float)movementVector.X
         );
 
         equippedWeapon->ignoreActors.Empty();

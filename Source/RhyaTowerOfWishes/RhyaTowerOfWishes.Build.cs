@@ -8,6 +8,9 @@ public class RhyaTowerOfWishes : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
+		// Errors on implicit int<->float narrowing (MSVC C4244/C4838); UE's default is Off.
+		CppCompileWarningSettings.UnsafeTypeCastWarningLevel = WarningLevel.Error;
+
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "Niagara", "UMG" });
 
 		PrivateDependencyModuleNames.AddRange(new string[] { "AudioModulation" });

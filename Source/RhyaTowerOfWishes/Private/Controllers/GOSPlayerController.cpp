@@ -1,8 +1,11 @@
 #include "Controllers/GOSPlayerController.h"
 
 #include "Settings/RhyaGameUserSettings.h"
+// EnhancedInput inline code narrows double->float; engine-owned, exempt from UnsafeTypeCastWarningLevel.
+PRAGMA_DISABLE_UNSAFE_TYPECAST_WARNINGS
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+PRAGMA_RESTORE_UNSAFE_TYPECAST_WARNINGS
 #include "Blueprint/UserWidget.h"
 #include "Kismet/GameplayStatics.h"
 

@@ -22,7 +22,7 @@ void UCharacter_AnimInstance::NativeUpdateAnimation(float DeltaTime)
 
 	if (characterMovementComponent)
 	{
-		GroundSpeed = UKismetMathLibrary::VSizeXY(characterMovementComponent->Velocity);
+		GroundSpeed = (float)UKismetMathLibrary::VSizeXY(characterMovementComponent->Velocity);
 		IsFalling = characterMovementComponent->IsFalling();
 		characterState = character->GetCharacterState();
 	}
