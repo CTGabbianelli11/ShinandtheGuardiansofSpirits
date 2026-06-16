@@ -109,6 +109,8 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input)
     UInputAction* DodgeAction;
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input)
+    UInputAction* BlockAction;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input)
     int maxComboNumber = 3;
 
     int comboIndex = 0;

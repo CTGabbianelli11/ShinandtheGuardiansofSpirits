@@ -194,23 +194,15 @@ void ACombatPlayerCharacter::Attack(const FInputActionValue& /*Value*/)
 
 void ACombatPlayerCharacter::DefensiveAction(const FInputActionValue& Value)
 {
-    if (actionState == EactionState::EAS_Dodging || actionState == EactionState::EAS_Blocking)
+    if (actionState == EactionState::EAS_Dodging)
         return;
     if (actionState == EactionState::EAS_Comboing || actionState == EactionState::EAS_Attacking)
         AttackEnd();
 
-    GEngine->AddOnScreenDebugMessage(0, 1.f, FColor::Red, FString::Printf(TEXT("Input : %s"), *GetCharacterMovement()->GetLastInputVector().ToString()));
-
+    // Need a movement direction: StartDodge rotates toward the input vector, so a
+    // neutral press has nothing to roll toward.
     if (GetCharacterMovement()->GetLastInputVector() != FVector::Zero())
         StartDodge();
-    else
-    {
-        StartBlock();
-    }
-
-
-
-
 }
 
 void ACombatPlayerCharacter::StartDodge()
@@ -243,7 +235,20 @@ void ACombatPlayerCharacter::StartBlock()
 
 void ACombatPlayerCharacter::EndBlock()
 {
+    if (actionState != EactionState::EAS_Blocking)
+        return;
+
     actionState = EactionState::EAS_Unoccupied;
+
+    if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
+    {
+        // run the last section of the montage to ease out of the block.
+        if (AnimInstance->Montage_IsPlaying(BlockMontage)) 
+        {
+            AnimInstance->Montage_SetNextSection(TEXT("Hold"), TEXT("Release"));
+        }
+        AnimInstance->Montage_Stop(0.15f, BlockImpactMontage);
+    }
 }
 
 bool ACombatPlayerCharacter::CanAttack()
@@ -527,6 +532,10 @@ void ACombatPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerIn
         EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Triggered, this, &ACombatPlayerCharacter::Interact);
         EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Triggered, this, &ACombatPlayerCharacter::Attack);
         EnhancedInputComponent->BindAction(DodgeAction, ETriggerEvent::Triggered, this, &ACombatPlayerCharacter::DefensiveAction);
+        // IA_Block uses a Down trigger: Started fires once on press, Completed on real
+        // release. (Triggered would re-fire every held frame and restart the montage.)
+        EnhancedInputComponent->BindAction(BlockAction, ETriggerEvent::Started, this, &ACombatPlayerCharacter::StartBlock);
+        EnhancedInputComponent->BindAction(BlockAction, ETriggerEvent::Completed, this, &ACombatPlayerCharacter::EndBlock);
     }
 }
 
