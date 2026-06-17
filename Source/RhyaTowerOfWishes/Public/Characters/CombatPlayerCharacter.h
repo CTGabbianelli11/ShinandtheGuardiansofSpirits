@@ -128,6 +128,15 @@ protected:
     bool IsDirectionInBlockCone(const FVector& ToSource) const;
     void PlayBlockImpactMontage();
     void OnBlockImpactMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+    void OnHitReactMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+
+    // True while the block input is held — polled from Enhanced Input, not latched in a flag.
+    bool IsBlockHeld() const;
+    // Re-enter block if still held, else go neutral. Shared by dodge and hit-react recovery.
+    void ResumeBlockIfHeld();
+    // Live world-space move direction polled from MoveAction — valid even while blocking,
+    // when Move() suppresses AddMovementInput. Zero if no direction is held.
+    FVector GetMoveInputWorldDirection() const;
 
     // Input Callbacks
     void Move(const FInputActionValue& Value);

@@ -199,9 +199,10 @@ void ACombatPlayerCharacter::DefensiveAction(const FInputActionValue& Value)
     if (actionState == EactionState::EAS_Comboing || actionState == EactionState::EAS_Attacking)
         AttackEnd();
 
-    // Need a movement direction: StartDodge rotates toward the input vector, so a
-    // neutral press has nothing to roll toward.
-    if (GetCharacterMovement()->GetLastInputVector() != FVector::Zero())
+    // Need a movement direction: StartDodge rotates toward it, so a neutral press has nothing
+    // to roll toward. Poll MoveAction directly — Move() suppresses AddMovementInput while
+    // blocking, so GetLastInputVector() reads zero there and the dodge-cancel would never fire.
+    if (!GetMoveInputWorldDirection().IsZero())
         StartDodge();
 }
 
@@ -209,8 +210,11 @@ void ACombatPlayerCharacter::StartDodge()
 {
     actionState = EactionState::EAS_Dodging;
 
-
-    SetActorRotation(UKismetMathLibrary::Conv_VectorToRotator(GetLastMovementInputVector()));
+    const FVector DodgeDir = GetMoveInputWorldDirection();
+    if (!DodgeDir.IsZero())
+    {
+        SetActorRotation(DodgeDir.Rotation());
+    }
 
     if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
     {
@@ -220,7 +224,8 @@ void ACombatPlayerCharacter::StartDodge()
 
 void ACombatPlayerCharacter::EndDodge()
 {
-    actionState = EactionState::EAS_Unoccupied;
+    // A dodge out of block returns to block if the button is still held (Souls-style).
+    ResumeBlockIfHeld();
 }
 
 void ACombatPlayerCharacter::StartBlock()
@@ -249,6 +254,46 @@ void ACombatPlayerCharacter::EndBlock()
         }
         AnimInstance->Montage_Stop(0.15f, BlockImpactMontage);
     }
+}
+
+bool ACombatPlayerCharacter::IsBlockHeld() const
+{
+    // Poll the live input value rather than mirror it in a flag — one source of truth,
+    // so block intent can't drift out of sync. Needs BindActionValue(BlockAction) in setup.
+    if (const UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(InputComponent))
+    {
+        return EnhancedInputComponent->GetBoundActionValue(BlockAction).Get<bool>();
+    }
+    return false;
+}
+
+void ACombatPlayerCharacter::ResumeBlockIfHeld()
+{
+    if (IsBlockHeld())
+    {
+        StartBlock();
+    }
+    else
+    {
+        actionState = EactionState::EAS_Unoccupied;
+    }
+}
+
+FVector ACombatPlayerCharacter::GetMoveInputWorldDirection() const
+{
+    if (const UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(InputComponent))
+    {
+        const FVector2D Move = EnhancedInputComponent->GetBoundActionValue(MoveAction).Get<FVector2D>();
+        if (!Move.IsNearlyZero())
+        {
+            // Match Move()'s mapping: stick Y -> forward, X -> right, in control-yaw space.
+            const FRotator YawOnly(0.f, GetControlRotation().Yaw, 0.f);
+            const FVector Fwd = FRotationMatrix(YawOnly).GetUnitAxis(EAxis::X);
+            const FVector Right = FRotationMatrix(YawOnly).GetUnitAxis(EAxis::Y);
+            return (Fwd * Move.Y + Right * Move.X).GetSafeNormal();
+        }
+    }
+    return FVector::ZeroVector;
 }
 
 bool ACombatPlayerCharacter::CanAttack()
@@ -396,10 +441,12 @@ void ACombatPlayerCharacter::GetHit_Implementation(const FVector& impactPoint, c
         if (HitReactMontage)
         {
             AnimInstance->Montage_Play(HitReactMontage);
-            if (actionState != EactionState::EAS_Blocking)
-            {
-                actionState = EactionState::EAS_Unoccupied;
-            }
+            // An unblocked hit breaks whatever you were doing, including a held guard.
+            actionState = EactionState::EAS_Unoccupied;
+            // Re-raise the guard once the stagger ends, if block is still held.
+            FOnMontageEnded EndDelegate;
+            EndDelegate.BindUObject(this, &ACombatPlayerCharacter::OnHitReactMontageEnded);
+            AnimInstance->Montage_SetEndDelegate(EndDelegate, HitReactMontage);
         }
     }
 }
@@ -428,6 +475,16 @@ void ACombatPlayerCharacter::OnBlockImpactMontageEnded(UAnimMontage* Montage, bo
         {
             AnimInstance->Montage_Play(BlockMontage);
         }
+    }
+}
+
+void ACombatPlayerCharacter::OnHitReactMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+    // Resume only on a clean finish; if another hit or a dodge interrupted the stagger,
+    // that action owns the next state.
+    if (!bInterrupted)
+    {
+        ResumeBlockIfHeld();
     }
 }
 
@@ -536,6 +593,10 @@ void ACombatPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerIn
         // release. (Triggered would re-fire every held frame and restart the montage.)
         EnhancedInputComponent->BindAction(BlockAction, ETriggerEvent::Started, this, &ACombatPlayerCharacter::StartBlock);
         EnhancedInputComponent->BindAction(BlockAction, ETriggerEvent::Completed, this, &ACombatPlayerCharacter::EndBlock);
+        // Value bindings (no callback) so we can poll live input state: block-held for resume
+        // decisions, move direction for dodging out of states where Move() suppresses movement.
+        EnhancedInputComponent->BindActionValue(BlockAction);
+        EnhancedInputComponent->BindActionValue(MoveAction);
     }
 }
 
