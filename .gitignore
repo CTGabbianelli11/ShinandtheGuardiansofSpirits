@@ -1,6 +1,10 @@
 # Visual Studio 2015 user specific files
 .vs/
 
+# VS Code project stuff
+.vscode/
+RhyaTowerOfWishes.code-workspace
+
 # macOS metadata files
 .DS_Store
 ._*
