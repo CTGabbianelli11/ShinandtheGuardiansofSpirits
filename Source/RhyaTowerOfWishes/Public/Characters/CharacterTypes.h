@@ -13,5 +13,6 @@ enum class EactionState : uint8
 	EAS_Comboing UMETA(DisplayName = "Comboing"),
 	EAS_Dodging UMETA(DisplayName = "Dodging"),
 	EAS_Blocking UMETA(DisplayName = "Blocking"),
+	EAS_Healing UMETA(DisplayName = "Healing"),
 
 };

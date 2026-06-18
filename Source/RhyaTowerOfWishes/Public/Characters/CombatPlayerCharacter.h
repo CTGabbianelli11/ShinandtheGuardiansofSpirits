@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "Engine/TimerHandle.h"
 // EnhancedInput inline code narrows double->float; engine-owned, exempt from UnsafeTypeCastWarningLevel.
 PRAGMA_DISABLE_UNSAFE_TYPECAST_WARNINGS
 #include "InputAction.h"
@@ -111,6 +112,8 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input)
     UInputAction* BlockAction;
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input)
+    UInputAction* HealAction;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input)
     int maxComboNumber = 3;
 
     int comboIndex = 0;
@@ -163,7 +166,14 @@ protected:
     UFUNCTION(BlueprintCallable) void StartBlock();
     UFUNCTION(BlueprintCallable) void EndBlock();
 
+    // Channelled heal: held input drains magic in pulses and adds health each pulse.
+    // Start on press, stop on release / out of magic / full health / interruption.
+    UFUNCTION(BlueprintCallable) void StartHeal();
+    UFUNCTION(BlueprintCallable) void StopHeal();
+    void HealTick();
+
     bool CanAttack();
+    bool CanHeal() const;
 
 private:
 
@@ -196,6 +206,10 @@ private:
     UPROPERTY(EditDefaultsOnly, Category = "Montages")
     UAnimMontage* BlockImpactMontage;
 
+    // Optional channel loop played while healing; heal works without it.
+    UPROPERTY(EditDefaultsOnly, Category = "Montages")
+    UAnimMontage* HealMontage;
+
     // Half-angle of the frontal block cone, measured from actor forward in the ground plane.
     UPROPERTY(EditDefaultsOnly, Category = "Combat|Block", meta = (ClampMin = "0.0", ClampMax = "180.0"))
     float BlockAngleDegrees = 60.f;
@@ -208,6 +222,22 @@ private:
     // first that frame, so the damage gate and the react can't disagree.
     bool bBlockedLastHit = false;
     uint64 LastBlockVerdictFrame = 0;
+
+    // --- Channelled heal tunables ---
+    // Health restored per pulse.
+    UPROPERTY(EditDefaultsOnly, Category = "Combat|Heal", meta = (ClampMin = "0.0"))
+    float HealPerTick = 5.f;
+    // Magic spent per pulse; the channel stops when the next pulse is unaffordable.
+    UPROPERTY(EditDefaultsOnly, Category = "Combat|Heal", meta = (ClampMin = "0.0"))
+    float MagicPerTick = 8.f;
+    // Seconds between pulses.
+    UPROPERTY(EditDefaultsOnly, Category = "Combat|Heal", meta = (ClampMin = "0.01"))
+    float HealInterval = 0.5f;
+
+    FTimerHandle HealTimerHandle;
+    // Game-time of the last heal pulse; gates the press-triggered immediate pulse so tapping
+    // the heal button can't out-pace holding it. -1000 = "never healed" (first press always pulses).
+    double LastHealPulseTime = -1000.0;
 
 public:
 

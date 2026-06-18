@@ -42,7 +42,7 @@ private:
 
 	UPROPERTY(EditAnywhere, Category = "Actor Attributes")
 	int maxHealth = 100;
-	
+
 	UPROPERTY(EditAnywhere, Category = "Actor Attributes")
     int magic = 100;
     
@@ -62,10 +62,16 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void ReceiveDamage(float _damage);
 
+	UFUNCTION(BlueprintCallable)
+	void AddHealth(float amount);
+
 	UFUNCTION(BlueprintCallable, BlueprintPure)
 	float GetHealthPercentage();
 	float GetSpeed() { return speed; };
 	bool IsAlive();
+
+	UFUNCTION(BlueprintCallable, BlueprintPure)
+	bool IsHealthFull() const { return health >= maxHealth; }
 	
 	UFUNCTION(BlueprintCallable)
 	void AddMagic(float amount);

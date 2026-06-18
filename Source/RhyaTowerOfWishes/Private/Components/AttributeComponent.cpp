@@ -33,6 +33,13 @@ void UAttributeComponent::ReceiveDamage(float _damage)
 	}
 }
 
+void UAttributeComponent::AddHealth(float amount)
+{
+	health = FMath::Clamp((int32)(health + amount), 0, maxHealth);
+
+	OnHealthPercentUpdateDelegate.Broadcast(GetHealthPercentage());
+}
+
 float UAttributeComponent::GetHealthPercentage()
 {
 	return (float)health / (float)maxHealth;

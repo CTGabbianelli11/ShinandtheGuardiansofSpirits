@@ -23,6 +23,7 @@ PRAGMA_RESTORE_UNSAFE_TYPECAST_WARNINGS
 #include <Enemy/Enemy.h>
 #include "DrawDebugHelpers.h"
 #include "HAL/IConsoleManager.h"
+#include "TimerManager.h"
 
 // Rhya.Debug.Combat 1 — floating hit/block text with the
 // verdict's signal source, attacker arrows, claimed impact points, and the block
@@ -196,6 +197,9 @@ void ACombatPlayerCharacter::DefensiveAction(const FInputActionValue& Value)
 {
     if (actionState == EactionState::EAS_Dodging)
         return;
+    // A dodge cancels a heal channel before rolling.
+    if (actionState == EactionState::EAS_Healing)
+        StopHeal();
     if (actionState == EactionState::EAS_Comboing || actionState == EactionState::EAS_Attacking)
         AttackEnd();
 
@@ -253,6 +257,100 @@ void ACombatPlayerCharacter::EndBlock()
             AnimInstance->Montage_SetNextSection(TEXT("Hold"), TEXT("Release"));
         }
         AnimInstance->Montage_Stop(0.15f, BlockImpactMontage);
+    }
+}
+
+bool ACombatPlayerCharacter::CanHeal() const
+{
+    // Neutral stance, alive, and missing health. The no-magic case isn't gated here —
+    // the first HealTick spends magic and stops immediately if it can't afford a pulse.
+    return actionState == EactionState::EAS_Unoccupied
+        && attributeComponent
+        && attributeComponent->IsAlive()
+        && !attributeComponent->IsHealthFull();
+}
+
+void ACombatPlayerCharacter::StartHeal()
+{
+    if (!CanHeal())
+        return;
+
+    actionState = EactionState::EAS_Healing;
+
+    if (HealMontage)
+    {
+        if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
+        {
+            AnimInstance->Montage_Play(HealMontage);
+        }
+    }
+
+    // Pulse immediately so a held press feels responsive, but only if a full HealInterval has
+    // elapsed since the last pulse — otherwise tapping the button would out-heal holding it.
+    // Timer-driven pulses are paced by the timer itself, so they aren't gated this way.
+    if (GetWorld()->GetTimeSeconds() - LastHealPulseTime >= HealInterval)
+    {
+        HealTick();
+    }
+    if (actionState == EactionState::EAS_Healing)
+    {
+        GetWorldTimerManager().SetTimer(HealTimerHandle, this,
+            &ACombatPlayerCharacter::HealTick, HealInterval, /*bLoop*/ true);
+    }
+}
+
+void ACombatPlayerCharacter::HealTick()
+{
+    // The timer outlives the heal state (a hit-react or dodge can flip actionState
+    // without touching the timer); stop ourselves if we're no longer healing.
+    if (actionState != EactionState::EAS_Healing)
+    {
+        StopHeal();
+        return;
+    }
+
+    // Check fullness before spending: a wasted pulse on a full bar feels like a bug.
+    if (!attributeComponent || attributeComponent->IsHealthFull())
+    {
+        StopHeal();
+        return;
+    }
+
+    // RemoveMagic returns false when the next pulse is unaffordable — the natural end of a channel.
+    if (!attributeComponent->RemoveMagic(MagicPerTick))
+    {
+        StopHeal();
+        return;
+    }
+
+    attributeComponent->AddHealth(HealPerTick);
+    LastHealPulseTime = GetWorld()->GetTimeSeconds();
+
+    if (CVarCombatDebug.GetValueOnGameThread() != 0)
+    {
+        DrawCombatText(this, FString::Printf(TEXT("HEAL +%.0f  (-%.0f magic)"),
+            HealPerTick, MagicPerTick), FColor::Green);
+    }
+}
+
+void ACombatPlayerCharacter::StopHeal()
+{
+    GetWorldTimerManager().ClearTimer(HealTimerHandle);
+
+    if (actionState == EactionState::EAS_Healing)
+    {
+        actionState = EactionState::EAS_Unoccupied;
+    }
+
+    if (HealMontage)
+    {
+        if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
+        {
+            if (AnimInstance->Montage_IsPlaying(HealMontage))
+            {
+                AnimInstance->Montage_Stop(0.15f, HealMontage);
+            }
+        }
     }
 }
 
@@ -404,6 +502,10 @@ bool ACombatPlayerCharacter::IsDirectionInBlockCone(const FVector& ToSource) con
 
 void ACombatPlayerCharacter::GetHit_Implementation(const FVector& impactPoint, const FVector& impactDirection)
 {
+    // A hit interrupts a heal channel (you were never blocking, so this is an unblocked hit).
+    if (actionState == EactionState::EAS_Healing)
+        StopHeal();
+
     // GetHit only picks the react. Consume a same-frame verdict from TakeDamage
     // if one exists; otherwise judge here and publish for the TakeDamage that follows.
     bool bBlockedThisHit = false;
@@ -593,6 +695,9 @@ void ACombatPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerIn
         // release. (Triggered would re-fire every held frame and restart the montage.)
         EnhancedInputComponent->BindAction(BlockAction, ETriggerEvent::Started, this, &ACombatPlayerCharacter::StartBlock);
         EnhancedInputComponent->BindAction(BlockAction, ETriggerEvent::Completed, this, &ACombatPlayerCharacter::EndBlock);
+        // IA_Heal mirrors block's hold pattern: Started begins the channel, Completed ends it.
+        EnhancedInputComponent->BindAction(HealAction, ETriggerEvent::Started, this, &ACombatPlayerCharacter::StartHeal);
+        EnhancedInputComponent->BindAction(HealAction, ETriggerEvent::Completed, this, &ACombatPlayerCharacter::StopHeal);
         // Value bindings (no callback) so we can poll live input state: block-held for resume
         // decisions, move direction for dodging out of states where Move() suppresses movement.
         EnhancedInputComponent->BindActionValue(BlockAction);
