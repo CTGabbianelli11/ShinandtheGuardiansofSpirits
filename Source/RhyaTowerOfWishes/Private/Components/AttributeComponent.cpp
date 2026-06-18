@@ -21,7 +21,9 @@ void UAttributeComponent::ReceiveDamage(float _damage)
 	const bool bWasAlive = IsAlive();
 
 	// Truncation is the established behavior; attributes are ints, damage is float.
-	health = FMath::Clamp((int32)(health - _damage), 0, maxHealth);
+	// bNeverDie floors at 1 so training dummies keep taking hits but never reach the death path.
+	const int32 MinHealth = bNeverDie ? 1 : 0;
+	health = FMath::Clamp((int32)(health - _damage), MinHealth, maxHealth);
 
 	OnHealthPercentUpdateDelegate.Broadcast(GetHealthPercentage());
 

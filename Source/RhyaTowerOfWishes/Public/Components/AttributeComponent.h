@@ -43,6 +43,10 @@ private:
 	UPROPERTY(EditAnywhere, Category = "Actor Attributes")
 	int maxHealth = 100;
 
+	// Training dummies: take damage (hit reacts, damage numbers, magic-on-hit) but never die.
+	UPROPERTY(EditAnywhere, Category = "Actor Attributes")
+	bool bNeverDie = false;
+
 	UPROPERTY(EditAnywhere, Category = "Actor Attributes")
     int magic = 100;
     
