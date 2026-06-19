@@ -27,6 +27,7 @@ class UAnimInstance;
 class UWeaponDataAsset;
 class UTimelineComponent;
 class UAC_HitStop;
+class UCombatHudWidget;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnComboAttackChanged, int, ComboIndex);
 
@@ -85,6 +86,14 @@ protected:
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attributes")
     UAttributeComponent* attributeComponent;
+
+    // HUD widget class (set to WBP_HUD on the BP). Spawned on BeginPlay for the local
+    // player and handed the AttributeComponent via InitializeHud (the "push" model).
+    UPROPERTY(EditDefaultsOnly, Category = "UI")
+    TSubclassOf<UCombatHudWidget> HudWidgetClass;
+
+    UPROPERTY()
+    UCombatHudWidget* HudWidget;
 
     UPROPERTY(BlueprintReadWrite, Category = "Weapon")
     AWeapon* equippedWeapon;

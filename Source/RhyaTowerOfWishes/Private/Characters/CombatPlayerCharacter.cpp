@@ -12,6 +12,8 @@ PRAGMA_DISABLE_UNSAFE_TYPECAST_WARNINGS
 PRAGMA_RESTORE_UNSAFE_TYPECAST_WARNINGS
 #include "Items/Item.h"
 #include "Components/AttributeComponent.h"
+#include "UI/CombatHudWidget.h"
+#include "Blueprint/UserWidget.h"
 #include "Items/Weapons/Weapon.h"
 #include "Components/BoxComponent.h"
 
@@ -76,6 +78,16 @@ void ACombatPlayerCharacter::BeginPlay()
         {
 
             Subsystem->AddMappingContext(CharacterInputMappingContext, 0);
+        }
+
+        if (HudWidgetClass)
+        {
+            HudWidget = CreateWidget<UCombatHudWidget>(PlayerController, HudWidgetClass);
+            if (HudWidget)
+            {
+                HudWidget->AddToViewport();
+                HudWidget->InitializeHud(attributeComponent);
+            }
         }
     }
 }
