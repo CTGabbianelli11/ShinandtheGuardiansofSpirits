@@ -273,7 +273,13 @@ bool ACombatPlayerCharacter::CanHeal() const
 void ACombatPlayerCharacter::StartHeal()
 {
     if (!CanHeal())
+    {
+        if (CVarCombatDebug.GetValueOnGameThread() != 0 && attributeComponent && attributeComponent->IsHealthFull())
+        {
+            DrawCombatText(this, TEXT("Health full"), FColor::Yellow);
+        }
         return;
+    }
 
     actionState = EactionState::EAS_Healing;
 
@@ -319,6 +325,10 @@ void ACombatPlayerCharacter::HealTick()
     // RemoveMagic returns false when the next pulse is unaffordable — the natural end of a channel.
     if (!attributeComponent->RemoveMagic(MagicPerTick))
     {
+        if (CVarCombatDebug.GetValueOnGameThread() != 0)
+        {
+            DrawCombatText(this, TEXT("Not enough magic"), FColor::Yellow);
+        }
         StopHeal();
         return;
     }
