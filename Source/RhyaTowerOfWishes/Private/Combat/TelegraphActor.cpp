@@ -1,8 +1,7 @@
 #include "Combat/TelegraphActor.h"
-#include "Components/StaticMeshComponent.h"
+#include "Components/DecalComponent.h"
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
-#include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -10,24 +9,20 @@ ATelegraphActor::ATelegraphActor()
 {
     PrimaryActorTick.bCanEverTick = true;
 
-    Disc = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Disc"));
-    SetRootComponent(Disc);
-    Disc->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-    Disc->SetCastShadow(false);
+    Decal = CreateDefaultSubobject<UDecalComponent>(TEXT("Decal"));
+    SetRootComponent(Decal);
 
-    // Bake the intrinsic visual (a flat plane + the radial-fill material) here so every
-    // instance renders without relying on Blueprint component-default serialization.
-    static ConstructorHelpers::FObjectFinder<UStaticMesh> PlaneMesh(TEXT("/Engine/BasicShapes/Plane.Plane"));
-    if (PlaneMesh.Succeeded())
-    {
-        Disc->SetStaticMesh(PlaneMesh.Object);
-    }
+    // A deferred decal projects its material along the component's -X axis. Pitch it so -X aims
+    // straight down (world -Z) 
+    Decal->SetRelativeRotation(FRotator(-90.f, 0.f, 0.f));
 
-    static ConstructorHelpers::FObjectFinder<UMaterialInterface> TelegraphMat(TEXT("/Game/VFX/Telegraph/M_TelegraphCircle.M_TelegraphCircle"));
+    // Bake the intrinsic material here so every instance renders without relying on Blueprint
+    // component-default serialization (a Substrate deferred-decal; see M_AoE_Telegraph).
+    static ConstructorHelpers::FObjectFinder<UMaterialInterface> TelegraphMat(TEXT("/Game/Blueprints/Characters/M_AoE_Telegraph.M_AoE_Telegraph"));
     if (TelegraphMat.Succeeded())
     {
         TelegraphMaterial = TelegraphMat.Object;
-        Disc->SetMaterial(0, TelegraphMat.Object);
+        Decal->SetDecalMaterial(TelegraphMat.Object);
     }
 }
 
@@ -40,24 +35,16 @@ void ATelegraphActor::BeginPlay()
         return;
     }
 
-    DiscMID = Disc->CreateDynamicMaterialInstance(0, TelegraphMaterial);
-    if (ensureMsgf(DiscMID, TEXT("%s: failed to create the telegraph MID despite a valid material"), *GetName()))
+    Decal->SetDecalMaterial(TelegraphMaterial);
+    DecalMID = Decal->CreateDynamicMaterialInstance();
+    if (ensureMsgf(DecalMID, TEXT("%s: failed to create the telegraph MID despite a valid material"), *GetName()))
     {
-        DiscMID->SetScalarParameterValue(TEXT("Radius"), Radius);
-        DiscMID->SetVectorParameterValue(TEXT("Color"), Color);
-        DiscMID->SetScalarParameterValue(TEXT("Progress"), 0.f);
+        DecalMID->SetScalarParameterValue(TEXT("Progress"), 0.f);
     }
 
-    // Scale the disc so it physically covers the circle
-    if (const UStaticMesh* Mesh = Disc->GetStaticMesh())
-    {
-        const double HalfExtent = Mesh->GetBounds().BoxExtent.X;
-        if (HalfExtent > KINDA_SMALL_NUMBER)
-        {
-            const float S = static_cast<float>(Radius / HalfExtent);
-            Disc->SetWorldScale3D(FVector(S, S, 1.f));
-        }
-    }
+    // Size the projection box so the masked circle has world radius == Radius
+    Decal->DecalSize = FVector(Radius, Radius, Radius);
+    Decal->MarkRenderStateDirty();
 }
 
 void ATelegraphActor::Tick(float DeltaSeconds)
@@ -72,9 +59,9 @@ void ATelegraphActor::Tick(float DeltaSeconds)
     Elapsed += DeltaSeconds;
     const float Progress = FMath::Clamp(Elapsed / Duration, 0.f, 1.f);
     // Visual-only; the null case is reported loudly at creation, and skipping the fill never blocks the strike.
-    if (DiscMID)
+    if (DecalMID)
     {
-        DiscMID->SetScalarParameterValue(TEXT("Progress"), Progress);
+        DecalMID->SetScalarParameterValue(TEXT("Progress"), Progress);
     }
 
     if (Elapsed >= Duration)
