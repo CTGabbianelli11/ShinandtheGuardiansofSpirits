@@ -4,13 +4,14 @@
 #include "GameFramework/Actor.h"
 #include "TelegraphActor.generated.h"
 
-class UStaticMeshComponent;
+class UDecalComponent;
 class UMaterialInterface;
 class UMaterialInstanceDynamic;
 
 /**
- * Ground telegraph: a flat disc whose material fills from the center out to Radius over
- * Duration, then spawns StrikeClass at this actor's transform and destroys itself.
+ * Ground telegraph: a deferred decal projected onto the terrain whose material fills from the
+ * center out to Radius over Duration, then spawns StrikeClass at this actor's transform and
+ * destroys itself.
  */
 UCLASS()
 class RHYATOWEROFWISHES_API ATelegraphActor : public AActor
@@ -25,9 +26,9 @@ protected:
     virtual void BeginPlay() override;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Telegraph")
-    UStaticMeshComponent* Disc;
+    UDecalComponent* Decal;
 
-    // Danger radius in world units. Drives the visual and should match the spawned strike's reach.
+    // Danger radius in world units. Drives the decal size and should match the spawned strike's reach.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Telegraph", meta = (ClampMin = "0.0"))
     float Radius = 120.f;
 
@@ -42,13 +43,13 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Telegraph")
     TSubclassOf<AActor> StrikeClass;
 
-    // Needs scalar params Progress (0..1) + Radius and vector param Color (see M_TelegraphCircle).
+    // Substrate deferred-decal material with scalar param Progress (0..1). See M_AoE_Telegraph.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Telegraph")
     UMaterialInterface* TelegraphMaterial;
 
 private:
     UPROPERTY(Transient)
-    UMaterialInstanceDynamic* DiscMID = nullptr;
+    UMaterialInstanceDynamic* DecalMID = nullptr;
 
     float Elapsed = 0.f;
     bool bStruck = false;
