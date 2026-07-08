@@ -44,7 +44,7 @@ void UAttributeComponent::AddHealth(float amount)
 
 float UAttributeComponent::GetHealthPercentage()
 {
-	return (float)health / (float)maxHealth;
+	return maxHealth > 0 ? (float)health / (float)maxHealth : 0.f;
 }
 
 bool UAttributeComponent::IsAlive()
@@ -85,7 +85,7 @@ void UAttributeComponent::ApplyMagicMultiplier()
 float UAttributeComponent::GetMagicPercentage()
 {
 	// magic/maxMagic are ints — cast to avoid integer division.
-	return (float)magic / (float)maxMagic;
+	return maxMagic > 0 ? (float)magic / (float)maxMagic : 0.f;
 }
 
 

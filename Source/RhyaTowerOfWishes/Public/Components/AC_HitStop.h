@@ -32,7 +32,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Material")
 	UMaterialInterface* materialInterface;
 protected:
-	ACharacter* CharacterActor;
+	UPROPERTY()
+	ACharacter* CharacterActor = nullptr;
 protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
@@ -51,7 +52,8 @@ protected:
 	float StartTimeDialation = 1;
 	float ShakeSpeed = 1;
 
-	UMaterialInstanceDynamic* materialInstance;
+	UPROPERTY()
+	UMaterialInstanceDynamic* materialInstance = nullptr;
 public:	
 
 	UFUNCTION(BlueprintCallable)

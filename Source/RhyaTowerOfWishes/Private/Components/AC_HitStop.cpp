@@ -18,14 +18,6 @@ UAC_HitStop::UAC_HitStop()
 
 	// ...
 
-	CharacterActor = Cast<ACharacter>(GetOwner());
-
-	if (CharacterActor)
-		skeletalMesh = CharacterActor->GetMesh();
-
-	if (skeletalMesh)
-		MeshRelativeLocation = skeletalMesh->GetRelativeLocation();
-
 	hitStopTimerEvent.BindUFunction(this, FName("EndHitStop"));
 }
 
@@ -35,9 +27,14 @@ void UAC_HitStop::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// GetOwner() isn't valid at construction — resolve the owner and mesh here.
+	CharacterActor = Cast<ACharacter>(GetOwner());
+
+	if (CharacterActor)
+		skeletalMesh = CharacterActor->GetMesh();
+
 	if (skeletalMesh)
 		MeshRelativeLocation = skeletalMesh->GetRelativeLocation();
-	// ...	
 }
 
 void UAC_HitStop::SetStartTimeDilation(float startTimeDialation)
@@ -64,13 +61,13 @@ void UAC_HitStop::BeginHitStop(float duration,float timeDialation,float shakeSpe
 
 	//Set overlay material and give flash
 	UWorld* world = GetWorld();
-	if (world && applyMaterial)
+	if (world && applyMaterial && skeletalMesh)
 	{
 		materialInstance = UKismetMaterialLibrary::CreateDynamicMaterialInstance(world, materialInterface);
 		if(materialInstance!=NULL)
 		materialInstance->SetScalarParameterValue(TEXT("Speed"), 5.f);
 
-		CharacterActor->GetMesh()->SetOverlayMaterial(materialInstance);
+		skeletalMesh->SetOverlayMaterial(materialInstance);
 	}
 }
 
@@ -80,17 +77,23 @@ void UAC_HitStop::EndHitStop()
 	{
 		GetWorld()->GetTimerManager().ClearTimer(timerHandle);
 
-		FHitResult SweepHitResult;
-		skeletalMesh->K2_SetRelativeLocation(MeshRelativeLocation, false, SweepHitResult, true);
-
 		CharacterActor->CustomTimeDilation = StartTimeDialation;
 
-		CharacterActor->GetMesh()->SetOverlayMaterial(NULL);
+		if (skeletalMesh)
+		{
+			FHitResult SweepHitResult;
+			skeletalMesh->K2_SetRelativeLocation(MeshRelativeLocation, false, SweepHitResult, true);
+
+			skeletalMesh->SetOverlayMaterial(NULL);
+		}
 	}
 }
 
 void UAC_HitStop::ApplyMeshShakeStep()
 {
+	if (!CharacterActor || !skeletalMesh)
+		return;
+
 	UWorld* world = GetWorld();
 	if (world)
 	{
