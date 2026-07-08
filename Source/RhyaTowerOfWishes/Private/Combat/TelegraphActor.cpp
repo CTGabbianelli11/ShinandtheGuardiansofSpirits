@@ -1,4 +1,5 @@
 #include "Combat/TelegraphActor.h"
+#include "Combat/StrikeActor.h"
 #include "Components/DecalComponent.h"
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -26,6 +27,24 @@ ATelegraphActor::ATelegraphActor()
     }
 }
 
+void ATelegraphActor::Configure(float InRadius, float InDuration, TSubclassOf<AStrikeActor> InStrikeClass)
+{
+    Radius = InRadius;
+    Duration = InDuration;
+    StrikeClass = InStrikeClass;
+}
+
+void ATelegraphActor::OnConstruction(const FTransform& Transform)
+{
+    Super::OnConstruction(Transform);
+
+    // Sizing from Radius belongs here, not BeginPlay: OnConstruction runs during FinishSpawning
+    // (after Configure() sets Radius, before BeginPlay) AND whenever a placed instance is edited
+    // in the editor, so the decal previews correctly either way.
+    Decal->DecalSize = FVector(Radius, Radius, Radius);
+    Decal->MarkRenderStateDirty();
+}
+
 void ATelegraphActor::BeginPlay()
 {
     Super::BeginPlay();
@@ -41,10 +60,6 @@ void ATelegraphActor::BeginPlay()
     {
         DecalMID->SetScalarParameterValue(TEXT("Progress"), 0.f);
     }
-
-    // Size the projection box so the masked circle has world radius == Radius
-    Decal->DecalSize = FVector(Radius, Radius, Radius);
-    Decal->MarkRenderStateDirty();
 }
 
 void ATelegraphActor::Tick(float DeltaSeconds)
@@ -71,11 +86,7 @@ void ATelegraphActor::Tick(float DeltaSeconds)
         // Missing StrikeClass = a telegraph that warns then does nothing; treat as misconfig (relax to a plain `if` for feints).
         if (ensureMsgf(StrikeClass, TEXT("%s: telegraph completed with no StrikeClass set"), *GetName()))
         {
-            FActorSpawnParameters Params;
-            Params.Owner = GetOwner();
-            Params.Instigator = GetInstigator();
-            Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-            GetWorld()->SpawnActor<AActor>(StrikeClass, GetActorTransform(), Params);
+            AStrikeActor::SpawnConfigured(GetWorld(), StrikeClass, GetActorTransform(), Radius, GetOwner(), GetInstigator());
         }
 
         Destroy();
