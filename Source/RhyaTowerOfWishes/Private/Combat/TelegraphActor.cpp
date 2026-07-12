@@ -86,7 +86,9 @@ void ATelegraphActor::Tick(float DeltaSeconds)
         // Missing StrikeClass = a telegraph that warns then does nothing; treat as misconfig (relax to a plain `if` for feints).
         if (ensureMsgf(StrikeClass, TEXT("%s: telegraph completed with no StrikeClass set"), *GetName()))
         {
-            AStrikeActor::SpawnConfigured(GetWorld(), StrikeClass, GetActorTransform(), Radius, GetOwner(), GetInstigator());
+            // Location only: this actor's rotation is the decal's -90 pitch (projection plumbing),
+            // and passing it through would spawn orientation-sensitive strikes lying sideways.
+            AStrikeActor::SpawnConfigured(GetWorld(), StrikeClass, FTransform(GetActorLocation()), Radius, GetOwner(), GetInstigator());
         }
 
         Destroy();

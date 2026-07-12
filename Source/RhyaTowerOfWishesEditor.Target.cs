@@ -11,5 +11,6 @@ public class RhyaTowerOfWishesEditorTarget : TargetRules
 		DefaultBuildSettings = BuildSettingsVersion.V6;
 		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_7;
 		ExtraModuleNames.Add("RhyaTowerOfWishes");
+		ExtraModuleNames.Add("RhyaTowerOfWishesEditor");
 	}
 }
