@@ -1,5 +1,6 @@
 #include "PillarFieldComponentVisualizer.h"
 #include "CanvasTypes.h"
+#include "Combat/CombatUtils.h"
 #include "Combat/PillarFieldComponent.h"
 #include "Editor.h"
 #include "EditorViewportClient.h"
@@ -47,16 +48,10 @@ void FPillarFieldComponentVisualizer::DrawVisualization(const UActorComponent* C
 	{
 		const FVector WorldPoint = LocalToWorld.TransformPosition(Field->PillarPoints[Index]);
 
-		FHitResult Hit;
-		const FVector Start = WorldPoint + FVector(0.f, 0.f, 500.f);
-		const FVector End = WorldPoint - FVector(0.f, 0.f, 1000.f);
 		// Runs every frame while the field is selected; a missing floor is drawn red rather than
 		// ensure-spammed (runtime DoPillarAttack still ensures on a real attack).
-		const bool bHitFloor = World->LineTraceSingleByChannel(
-			Hit, Start, End, ECC_Visibility,
-			FCollisionQueryParams(SCENE_QUERY_STAT(PillarVisFloorSnap), false, Field->GetOwner()));
-
-		const FVector FloorPoint = bHitFloor ? FVector(Hit.ImpactPoint) : WorldPoint;
+		FVector FloorPoint = WorldPoint;
+		const bool bHitFloor = Rhya::SnapToFloor(*World, WorldPoint, Field->GetOwner(), FloorPoint);
 
 		FLinearColor Color = LavaColor;
 		if (!bHitFloor)

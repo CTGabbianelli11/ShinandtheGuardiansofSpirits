@@ -22,6 +22,7 @@ PRAGMA_RESTORE_UNSAFE_TYPECAST_WARNINGS
 #include <Components/AC_HitStop.h>
 #include <Enemy/Enemy.h>
 #include "DrawDebugHelpers.h"
+#include "Engine/DamageEvents.h"
 #include "HAL/IConsoleManager.h"
 #include "TimerManager.h"
 
@@ -420,7 +421,23 @@ float ACombatPlayerCharacter::TakeDamage(float DamageAmount, FDamageEvent const&
     {
         bool bBlocked = false;
         const TCHAR* VerdictSource = TEXT("");
-        if (DamageCauser)
+        if (DamageEvent.IsOfType(FPointDamageEvent::ClassID))
+        {
+            // The attack supplied its travel direction (ApplyPointDamage); judge the block
+            // against it. Position guessing is wrong for attacks that travel away from
+            // their owner, e.g. a sliding wall.
+            const FPointDamageEvent& PointEvent = static_cast<const FPointDamageEvent&>(DamageEvent);
+            bBlocked = IsDirectionInBlockCone(-PointEvent.ShotDirection);
+            VerdictSource = TEXT("point-damage direction");
+            if (bCombatDebug)
+            {
+                DrawDebugDirectionalArrow(GetWorld(),
+                    GetActorLocation() - PointEvent.ShotDirection * 150.f + FVector(0.f, 0.f, 50.f),
+                    GetActorLocation() + FVector(0.f, 0.f, 50.f),
+                    60.f, bBlocked ? FColor::Green : FColor::Red, false, 1.8f, SDPG_Foreground, 2.f);
+            }
+        }
+        else if (DamageCauser)
         {
             // DamageCauser is the weapon/projectile, its Owner the wielder. Judge by
             // position, not impact point — tick-stepped projectiles tunnel past the
@@ -433,7 +450,7 @@ float ACombatPlayerCharacter::TakeDamage(float DamageAmount, FDamageEvent const&
                 DrawDebugDirectionalArrow(GetWorld(),
                     Attacker->GetActorLocation() + FVector(0.f, 0.f, 50.f),
                     GetActorLocation() + FVector(0.f, 0.f, 50.f),
-                    60.f, bBlocked ? FColor::Green : FColor::Red, false, 1.8f, 0, 2.f);
+                    60.f, bBlocked ? FColor::Green : FColor::Red, false, 1.8f, SDPG_Foreground, 2.f);
             }
         }
         else if (LastBlockVerdictFrame == GFrameCounter)
@@ -535,7 +552,7 @@ void ACombatPlayerCharacter::GetHit_Implementation(const FVector& impactPoint, c
     {
         // Dealer-claimed impact point, colored by verdict.
         DrawDebugSphere(GetWorld(), impactPoint, 8.f, 8,
-            bBlockedThisHit ? FColor::Green : FColor::Red, false, 1.8f);
+            bBlockedThisHit ? FColor::Green : FColor::Red, false, 1.8f, SDPG_Foreground);
     }
 
     if (bBlockedThisHit)
@@ -681,10 +698,10 @@ void ACombatPlayerCharacter::Tick(float DeltaTime)
         constexpr float Radius = 150.f;
         const FVector LeftEdge = Forward.RotateAngleAxis(-BlockAngleDegrees, FVector::UpVector);
         const FVector RightEdge = Forward.RotateAngleAxis(BlockAngleDegrees, FVector::UpVector);
-        DrawDebugLine(GetWorld(), Center, Center + LeftEdge * Radius, FColor::Cyan, false, -1.f, 0, 1.5f);
-        DrawDebugLine(GetWorld(), Center, Center + RightEdge * Radius, FColor::Cyan, false, -1.f, 0, 1.5f);
+        DrawDebugLine(GetWorld(), Center, Center + LeftEdge * Radius, FColor::Cyan, false, -1.f, SDPG_Foreground, 1.5f);
+        DrawDebugLine(GetWorld(), Center, Center + RightEdge * Radius, FColor::Cyan, false, -1.f, SDPG_Foreground, 1.5f);
         DrawDebugCircleArc(GetWorld(), Center, Radius, Forward,
-            FMath::DegreesToRadians(BlockAngleDegrees), 24, FColor::Cyan, false, -1.f, 0, 1.5f);
+            FMath::DegreesToRadians(BlockAngleDegrees), 24, FColor::Cyan, false, -1.f, SDPG_Foreground, 1.5f);
     }
 }
 

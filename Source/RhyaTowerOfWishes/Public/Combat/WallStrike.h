@@ -32,7 +32,8 @@ public:
 
     // Spawns Class at Transform with the slide parameters already configured. Encapsulates the
     // SpawnActorDeferred/FinishSpawning ordering the plain properties depend on - returns
-    // nullptr (after an ensure) if World/Class/the spawn itself fail.
+    // nullptr (after an ensure) if World/Class/the parameters/the spawn itself fail.
+    // Transform's location is the wall's BASE (the floor point); the wall lifts itself onto it.
     static AWallStrike* SpawnConfigured(UWorld* World, TSubclassOf<AWallStrike> Class, const FTransform& Transform, float InWindupTime, float InSlideSpeed, float InTravelDistance, AActor* Owner, APawn* Instigator);
 
 protected:

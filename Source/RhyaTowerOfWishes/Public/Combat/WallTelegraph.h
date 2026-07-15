@@ -26,6 +26,10 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Telegraph")
     void Configure(float InWidth, float InLength, float InDuration);
 
+    // Spawns Class at Transform with the danger rect already configured; the telegraph
+    // counterpart of AWallStrike::SpawnConfigured. Returns nullptr (after an ensure) on failure.
+    static AWallTelegraph* SpawnConfigured(UWorld* World, TSubclassOf<AWallTelegraph> Class, const FTransform& Transform, float InWidth, float InLength, float InDuration, AActor* Owner, APawn* Instigator);
+
 protected:
     virtual void OnConstruction(const FTransform& Transform) override;
     virtual void BeginPlay() override;

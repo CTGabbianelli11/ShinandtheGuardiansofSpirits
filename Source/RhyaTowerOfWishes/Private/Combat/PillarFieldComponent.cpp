@@ -1,12 +1,11 @@
 #include "Combat/PillarFieldComponent.h"
+#include "Combat/CombatUtils.h"
 #include "Combat/TelegraphActor.h"
 #include "Combat/StrikeActor.h"
-#include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
 #include "Algo/RandomShuffle.h"
 #include "HAL/IConsoleManager.h"
-#include "UObject/UObjectIterator.h"
 
 void UPillarFieldComponent::DoPillarAttack(int32 NumPillars)
 {
@@ -20,6 +19,10 @@ void UPillarFieldComponent::DoPillarAttack(int32 NumPillars)
     }
 
     UWorld* World = GetWorld();
+    if (!ensureMsgf(World, TEXT("%s: DoPillarAttack on a component with no world"), *GetName()))
+    {
+        return;
+    }
 
     TArray<FVector> Shuffled = PillarPoints;
     Algo::RandomShuffle(Shuffled);
@@ -29,19 +32,13 @@ void UPillarFieldComponent::DoPillarAttack(int32 NumPillars)
     {
         const FVector WorldPoint = GetComponentTransform().TransformPosition(Shuffled[Index]);
 
-        FHitResult Hit;
-        const FVector Start = WorldPoint + FVector(0.f, 0.f, 500.f);
-        const FVector End = WorldPoint - FVector(0.f, 0.f, 1000.f);
-        if (!ensureMsgf(
-                World->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, FCollisionQueryParams(SCENE_QUERY_STAT(PillarFloorSnap), false, GetOwner())),
+        FVector FloorPoint;
+        if (!ensureMsgf(Rhya::SnapToFloor(*World, WorldPoint, GetOwner(), FloorPoint),
                 TEXT("%s: pillar %d found no floor under %s"), *GetName(), Index, *WorldPoint.ToString()))
         {
             continue;
         }
 
-        // ImpactPoint is FVector_NetQuantize; take a plain FVector so the timer-delegate payload
-        // type matches SpawnTelegraphAt's FVector parameter.
-        const FVector FloorPoint(Hit.ImpactPoint);
         if (StaggerWindow > 0.f)
         {
             FTimerHandle Handle;
@@ -81,33 +78,21 @@ static FAutoConsoleCommandWithWorldAndArgs GRhyaDebugPillarAttack(
     TEXT("Triggers DoPillarAttack on the first UPillarFieldComponent in the world. Arg: pillar count (default 3)."),
     FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
     {
-        if (!World || !World->IsGameWorld())
-        {
-            World = nullptr;
-            for (const FWorldContext& Context : GEngine->GetWorldContexts())
-            {
-                if (Context.World() && Context.World()->IsGameWorld())
-                {
-                    World = Context.World();
-                    break;
-                }
-            }
-        }
+        World = Rhya::FindGameWorld(World);
         if (!World)
         {
             UE_LOG(LogTemp, Warning, TEXT("Rhya.Debug.PillarAttack: no running game world"));
             return;
         }
 
-        const int32 N = Args.Num() > 0 ? FCString::Atoi(*Args[0]) : 3;
-        for (TObjectIterator<UPillarFieldComponent> It; It; ++It)
+        UPillarFieldComponent* Component = Rhya::FindFirstComponent<UPillarFieldComponent>(World);
+        if (!Component)
         {
-            if (It->GetWorld() == World && It->IsRegistered())
-            {
-                It->DoPillarAttack(N);
-                return;
-            }
+            UE_LOG(LogTemp, Warning, TEXT("Rhya.Debug.PillarAttack: no UPillarFieldComponent in world"));
+            return;
         }
-        UE_LOG(LogTemp, Warning, TEXT("Rhya.Debug.PillarAttack: no UPillarFieldComponent in world"));
+
+        const int32 N = Args.Num() > 0 ? FCString::Atoi(*Args[0]) : 3;
+        Component->DoPillarAttack(N);
     }),
     ECVF_Cheat);

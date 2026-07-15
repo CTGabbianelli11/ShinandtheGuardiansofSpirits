@@ -40,6 +40,8 @@ void AWallStrike::BeginPlay()
 {
     Super::BeginPlay();
 
+    ensureMsgf(Mesh->GetStaticMesh(), TEXT("%s has no static mesh; hitbox and telegraph are using the box default"), *GetName());
+
     // Dormant during the telegraph: visible but hitless until the slide starts.
     SetActorEnableCollision(false);
     Box->OnComponentBeginOverlap.AddDynamic(this, &AWallStrike::OnBoxBeginOverlap);
@@ -92,12 +94,17 @@ void AWallStrike::OnBoxBeginOverlap(UPrimitiveComponent* OverlappedComponent, AA
     DamagedActors.Add(OtherActor);
 
     AController* InstigatorController = GetInstigator() ? GetInstigator()->GetController() : nullptr;
-    UGameplayStatics::ApplyDamage(OtherActor, Damage, InstigatorController, this, nullptr);
+    // Point damage carries the slide direction, so block verdicts face the wall, not its owner.
+    UGameplayStatics::ApplyPointDamage(OtherActor, Damage, GetActorForwardVector(), SweepResult, InstigatorController, this, nullptr);
 }
 
 AWallStrike* AWallStrike::SpawnConfigured(UWorld* World, TSubclassOf<AWallStrike> Class, const FTransform& Transform, float InWindupTime, float InSlideSpeed, float InTravelDistance, AActor* Owner, APawn* Instigator)
 {
     if (!ensureMsgf(World && Class, TEXT("AWallStrike::SpawnConfigured: missing World or Class")))
+    {
+        return nullptr;
+    }
+    if (!ensureMsgf(InWindupTime >= 0.f && InSlideSpeed > 0.f && InTravelDistance > 0.f, TEXT("AWallStrike::SpawnConfigured: non-positive slide parameters")))
     {
         return nullptr;
     }
@@ -112,5 +119,8 @@ AWallStrike* AWallStrike::SpawnConfigured(UWorld* World, TSubclassOf<AWallStrike
     Wall->SlideSpeed = InSlideSpeed;
     Wall->TravelDistance = InTravelDistance;
     Wall->FinishSpawning(Transform);
+    // The box is centered on the root, so the wall lifts itself by a half-height to stand on the
+    // spawn location rather than straddle it.
+    Wall->AddActorWorldOffset(FVector(0.f, 0.f, Wall->GetCollisionExtent().Z));
     return Wall;
 }
