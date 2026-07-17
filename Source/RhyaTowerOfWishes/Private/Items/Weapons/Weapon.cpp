@@ -189,7 +189,7 @@ void AWeapon::OnBoxOverlap(UPrimitiveComponent* OverlappedComponent, AActor* Oth
             {
                 if (PlayerOwner->hitStopComponent)
                 {
-                    PlayerOwner->hitStopComponent->BeginHitStop(.15f, .05, 30, 1, false);
+                    PlayerOwner->hitStopComponent->BeginHitStop(.15f, .05f, 30, 1, false);
                 }
             }
         }
