@@ -179,11 +179,6 @@ float AEnemy::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AC
 		//GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Red, FString::Printf(TEXT("Example text that prints a float: %f"), DamageAmount), false);
 
 		attributes->ReceiveDamage(DamageAmount);
-
-		if (!attributes->IsAlive())
-		{
-			CharacterDied();
-		}
 	}
 	return DamageAmount;
 }
