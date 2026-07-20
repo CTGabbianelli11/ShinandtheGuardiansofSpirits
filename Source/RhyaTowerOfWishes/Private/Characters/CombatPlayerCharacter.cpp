@@ -1,10 +1,15 @@
 
 // CPPCharacter.cpp
 #include "Characters/CombatPlayerCharacter.h"
+#include "Animation/AnimInstance.h"
 #include "Animation/AnimMontage.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Engine/Engine.h"
+#include "Engine/LocalPlayer.h"
+#include "Engine/World.h"
 // EnhancedInput inline code narrows double->float; engine-owned, exempt from UnsafeTypeCastWarningLevel.
 PRAGMA_DISABLE_UNSAFE_TYPECAST_WARNINGS
 #include "EnhancedInputSubsystems.h"

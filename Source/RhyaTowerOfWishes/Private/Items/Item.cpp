@@ -4,7 +4,9 @@
 #include "Items/Item.h"
 #include "RhyaTowerOfWishes/DebugMacros.h"
 #include "Components/SphereComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Characters/CombatPlayerCharacter.h"
+#include "Engine/Engine.h"
 
 #define THIRTY 30
 

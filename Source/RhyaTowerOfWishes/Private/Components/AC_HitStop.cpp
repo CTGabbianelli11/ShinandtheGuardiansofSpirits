@@ -3,6 +3,9 @@
 
 #include "Components/AC_HitStop.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Curves/CurveFloat.h"
+#include "Engine/World.h"
+#include "TimerManager.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"

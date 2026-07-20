@@ -7,6 +7,7 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "PrimitiveDrawingUtils.h"
+#include "SceneView.h"
 #include "ScopedTransaction.h"
 
 IMPLEMENT_HIT_PROXY(HPillarPointProxy, HComponentVisProxy);

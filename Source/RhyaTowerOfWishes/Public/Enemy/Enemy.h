@@ -11,6 +11,7 @@ class UAttributeComponent;
 class UNiagaraSystem;
 class UCrowdExcitementComponent;
 class UAC_HitStop;
+class USoundWave;
 
 UCLASS()
 class RHYATOWEROFWISHES_API AEnemy : public ACharacter, public IHitInterface, public IDeathInterface

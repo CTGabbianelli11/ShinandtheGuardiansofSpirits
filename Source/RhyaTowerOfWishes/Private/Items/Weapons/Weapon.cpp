@@ -11,6 +11,7 @@
 #include "Components/AC_HitStop.h"
 #include "Components/AttributeComponent.h"
 #include "Enemy/Enemy.h"
+#include "GameFramework/DamageType.h"
 #include "DrawDebugHelpers.h"
 #include "HAL/IConsoleManager.h"
 
