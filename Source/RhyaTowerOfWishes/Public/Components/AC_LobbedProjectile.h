@@ -38,6 +38,11 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lob", meta = (ClampMin = "0.05"))
     float FlightTime = 1.5f;
 
+    // keeps the actor around a little longer after its flight but turns off vis and collisions
+    // useful, for example, if you want particles from the flight to not get cleaned up right away.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lob", meta = (ClampMin = "0.0"))
+    float PostFlightTime = 0.f;
+
     // Danger radius passed to the telegraph.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lob", meta = (ClampMin = "0.0"))
     float Radius = 200.f;

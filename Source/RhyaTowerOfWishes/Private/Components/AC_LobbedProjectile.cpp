@@ -3,6 +3,9 @@
 #include "Combat/StrikeActor.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Engine/World.h"
+#include "TimerManager.h"
+#include "NiagaraComponent.h"
+#include "Components/MeshComponent.h"
 
 UAC_LobbedProjectile::UAC_LobbedProjectile()
 {
@@ -53,5 +56,29 @@ void UAC_LobbedProjectile::ThrowAt(FVector TargetLocation)
         Movement->Velocity = (TargetLocation - LaunchPoint) / FlightTime - 0.5f * Gravity * FlightTime;
     }
 
-    Projectile->SetLifeSpan(FlightTime);
+    Projectile->SetLifeSpan(FlightTime + PostFlightTime);
+    if (PostFlightTime > 0.f)
+    {
+        FTimerHandle LandedTimer;
+        World->GetTimerManager().SetTimer(LandedTimer,
+            FTimerDelegate::CreateWeakLambda(Projectile, [Projectile]()
+            {
+                if (UMeshComponent* Mesh = Projectile->FindComponentByClass<UMeshComponent>())
+                {
+                    Mesh->SetHiddenInGame(true);
+                }
+                if (UProjectileMovementComponent* Move = Projectile->FindComponentByClass<UProjectileMovementComponent>())
+                {
+                    // The bomb has no collision; left simulating it falls through the world and
+                    // KillZ would destroy it early, resurrecting the trail pop.
+                    Move->StopMovementImmediately();
+                    Move->Deactivate();
+                }
+                if (UNiagaraComponent* Trail = Projectile->FindComponentByClass<UNiagaraComponent>())
+                {
+                    Trail->Deactivate();
+                }
+            }),
+            FlightTime, false);
+    }
 }
