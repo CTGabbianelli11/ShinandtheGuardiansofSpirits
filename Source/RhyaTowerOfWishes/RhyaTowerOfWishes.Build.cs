@@ -20,7 +20,7 @@ public class RhyaTowerOfWishes : ModuleRules
 			FPSemantics = FPSemanticsMode.Precise;
 		}
 
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "Niagara", "UMG" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "Niagara", "UMG", "AIModule", "GameplayTasks" });
 
 		PrivateDependencyModuleNames.AddRange(new string[] { "AudioModulation" });
 
