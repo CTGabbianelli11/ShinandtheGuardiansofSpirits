@@ -42,6 +42,10 @@
 		{
 			"Name": "VisualStudioCodeSourceCodeAccess",
 			"Enabled": false
+		},
+		{
+			"Name": "MotionWarping",
+			"Enabled": true
 		}
 	]
 }
