@@ -15,6 +15,13 @@ UBTService_VolcanoSense::UBTService_VolcanoSense()
     EruptionsActiveKey.AddBoolFilter(this, GET_MEMBER_NAME_CHECKED(UBTService_VolcanoSense, EruptionsActiveKey));
     TargetActorKey.AddObjectFilter(this, GET_MEMBER_NAME_CHECKED(UBTService_VolcanoSense, TargetActorKey), AActor::StaticClass());
     PlayerInRangeKey.AddBoolFilter(this, GET_MEMBER_NAME_CHECKED(UBTService_VolcanoSense, PlayerInRangeKey));
+
+    // Convention defaults so a freshly placed node self-binds instead of taking the editor's
+    // auto-pick of the first compatible key (which chooses SelfActor for Actor-filtered slots).
+    // A blackboard without these names shows an invalid-key warning on the node.
+    EruptionsActiveKey.SelectedKeyName = TEXT("EruptionsActive");
+    TargetActorKey.SelectedKeyName = TEXT("TargetActor");
+    PlayerInRangeKey.SelectedKeyName = TEXT("PlayerInRange");
 }
 
 void UBTService_VolcanoSense::InitializeFromAsset(UBehaviorTree& Asset)
@@ -40,6 +47,14 @@ void UBTService_VolcanoSense::TickNode(UBehaviorTreeComponent& OwnerComp, uint8*
     UBlackboardComponent* Blackboard = OwnerComp.GetBlackboardComponent();
     AVolcanoPawn* Volcano = Controller ? Cast<AVolcanoPawn>(Controller->GetPawn()) : nullptr;
     if (!ensureMsgf(Volcano && Blackboard, TEXT("%s ticking without a possessed AVolcanoPawn and blackboard"), *GetName()))
+    {
+        return;
+    }
+    // Unbound selectors make every SetValue a silent no-op; fail here, where only runtime (not
+    // mid-authoring editor state) can reach.
+    if (!ensureMsgf(EruptionsActiveKey.IsSet() && TargetActorKey.IsSet() && PlayerInRangeKey.IsSet(),
+        TEXT("%s: unbound blackboard key(s) - EruptionsActive:%d TargetActor:%d PlayerInRange:%d"),
+        *GetName(), (int32)EruptionsActiveKey.IsSet(), (int32)TargetActorKey.IsSet(), (int32)PlayerInRangeKey.IsSet()))
     {
         return;
     }

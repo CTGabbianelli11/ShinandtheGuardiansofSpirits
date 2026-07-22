@@ -14,6 +14,9 @@ UBTTask_LavaVolley::UBTTask_LavaVolley()
     bNotifyTick = true;
 
     TargetLocationKey.AddVectorFilter(this, GET_MEMBER_NAME_CHECKED(UBTTask_LavaVolley, TargetLocationKey));
+
+    // Convention default; see BTService_VolcanoSense's ctor for the auto-pick rationale.
+    TargetLocationKey.SelectedKeyName = TEXT("TargetLocation");
 }
 
 void UBTTask_LavaVolley::InitializeFromAsset(UBehaviorTree& Asset)
@@ -38,6 +41,11 @@ EBTNodeResult::Type UBTTask_LavaVolley::ExecuteTask(UBehaviorTreeComponent& Owne
     AAIController* Controller = OwnerComp.GetAIOwner();
     const AVolcanoPawn* Volcano = Controller ? Cast<AVolcanoPawn>(Controller->GetPawn()) : nullptr;
     if (!Blackboard || !Volcano)
+    {
+        return EBTNodeResult::Failed;
+    }
+    if (!ensureMsgf(TargetLocationKey.IsSet(),
+        TEXT("%s: unbound TargetLocation blackboard key"), *GetName()))
     {
         return EBTNodeResult::Failed;
     }
