@@ -21,7 +21,6 @@ void AGOSPlayerController::SetupInputComponent()
 	if (UEnhancedInputComponent* EnhancedInputComponent = CastChecked<UEnhancedInputComponent>(InputComponent))
 	{
 		EnhancedInputComponent->BindAction(MuteAction, ETriggerEvent::Triggered, this, &AGOSPlayerController::ToggleMute);
-		EnhancedInputComponent->BindAction(PauseAction, ETriggerEvent::Triggered, this, &AGOSPlayerController::TogglePause);
 	}
 }
 
@@ -56,44 +55,4 @@ void AGOSPlayerController::ToggleMute()
 	{
 		Settings->ApplyMuted(this, bIsMuted);
 	}
-}
-
-void AGOSPlayerController::TogglePause()
-{
-	if (IsPaused())
-	{
-		bShowMouseCursor = false;
-
-		FInputModeGameOnly InputMode;
-		InputMode.SetConsumeCaptureMouseDown(true);
-		SetInputMode(InputMode);
-
-		// Remove the pause screen and unpause. Destroying it (instead of just
-		// hiding) means the next pause recreates a fresh CommonActivatableWidget,
-		// which re-activates and restores gamepad focus (DesiredFocusWidget).
-		if (PauseScreenWidget)
-		{
-			PauseScreenWidget->RemoveFromParent();
-			PauseScreenWidget = nullptr;
-		}
-	}
-	else
-	{
-		bShowMouseCursor = true;
-
-		FInputModeGameAndUI InputMode;
-		InputMode.SetHideCursorDuringCapture(false);
-		InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-		SetInputMode(InputMode);
-
-		// Create the pause screen fresh so the CommonActivatableWidget auto-activates
-		// and grabs gamepad focus. It is destroyed again on unpause (above).
-		PauseScreenWidget = CreateWidget(this, PauseScreen);
-		if (PauseScreenWidget)
-		{
-			PauseScreenWidget->AddToViewport();
-		}
-	}
-
-	UGameplayStatics::SetGamePaused(GetWorld(), !IsPaused());
 }
