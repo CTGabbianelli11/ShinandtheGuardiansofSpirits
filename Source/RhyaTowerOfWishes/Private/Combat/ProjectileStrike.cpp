@@ -74,12 +74,12 @@ void AProjectileStrike::Tick(float DeltaSeconds)
     }
     if (Hit.bBlockingHit)
     {
-        Destroy();
+        OnFlightEnded();
         return;
     }
     if (Traveled >= MaxRange)
     {
-        Destroy();
+        OnFlightEnded();
     }
 }
 
@@ -90,10 +90,19 @@ void AProjectileStrike::OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComp
         return;
     }
     bSpent = true;
+    OnPawnHit(OtherActor, SweepResult);
+}
 
+void AProjectileStrike::OnPawnHit(AActor* OtherActor, const FHitResult& SweepResult)
+{
     AController* InstigatorController = GetInstigator() ? GetInstigator()->GetController() : nullptr;
     // Point damage carries the flight direction, so block verdicts face the projectile, not its firer.
     UGameplayStatics::ApplyPointDamage(OtherActor, Damage, GetActorForwardVector(), SweepResult, InstigatorController, this, nullptr);
+    Destroy();
+}
+
+void AProjectileStrike::OnFlightEnded()
+{
     Destroy();
 }
 

@@ -35,6 +35,12 @@ protected:
     virtual void OnConstruction(const FTransform& Transform) override;
     virtual void BeginPlay() override;
 
+    // The pawn the sweep caught. Base: point damage along the flight direction, then vanish.
+    virtual void OnPawnHit(AActor* OtherActor, const FHitResult& SweepResult);
+
+    // Flight over without catching a pawn — blocking world hit or MaxRange spent. Base: vanish.
+    virtual void OnFlightEnded();
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Projectile Strike")
     USphereComponent* Sphere;
 
