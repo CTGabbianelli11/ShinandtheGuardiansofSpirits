@@ -1,5 +1,11 @@
 #include "Combat/StrikeActor.h"
+#include "Combat/CombatUtils.h"
 #include "Engine/World.h"
+
+void AStrikeActor::DealRadialDamage(float DamageAmount)
+{
+    Rhya::DealRadialDamage(*this, DamageAmount, Radius);
+}
 
 AStrikeActor* AStrikeActor::SpawnConfigured(UWorld* World, TSubclassOf<AStrikeActor> Class, const FTransform& Transform, float Radius, AActor* Owner, APawn* Instigator)
 {

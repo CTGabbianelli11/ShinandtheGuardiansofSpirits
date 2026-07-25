@@ -1,9 +1,5 @@
 #include "Combat/PillarStrike.h"
 #include "Components/StaticMeshComponent.h"
-#include "Engine/World.h"
-#include "Engine/OverlapResult.h"
-#include "GameFramework/Pawn.h"
-#include "Kismet/GameplayStatics.h"
 
 APillarStrike::APillarStrike()
 {
@@ -23,35 +19,7 @@ void APillarStrike::BeginPlay()
     Super::BeginPlay();
 
     Mesh->SetRelativeLocation(FVector(0.f, 0.f, -RiseDistance));
-    ApplyEmergenceDamage();
-}
-
-void APillarStrike::ApplyEmergenceDamage()
-{
-    UWorld* World = GetWorld();
-
-    FCollisionObjectQueryParams ObjectParams(ECC_Pawn);
-    FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(PillarEmergence), false, this);
-    if (GetOwner())
-    {
-        QueryParams.AddIgnoredActor(GetOwner());
-    }
-
-    TArray<FOverlapResult> Overlaps;
-    World->OverlapMultiByObjectType(Overlaps, GetActorLocation(), FQuat::Identity, ObjectParams, FCollisionShape::MakeSphere(Radius), QueryParams);
-
-    AController* InstigatorController = GetInstigator() ? GetInstigator()->GetController() : nullptr;
-
-    TSet<AActor*> Damaged;
-    for (const FOverlapResult& Overlap : Overlaps)
-    {
-        AActor* HitActor = Overlap.GetActor();
-        if (HitActor && !Damaged.Contains(HitActor))
-        {
-            Damaged.Add(HitActor);
-            UGameplayStatics::ApplyDamage(HitActor, Damage, InstigatorController, this, nullptr);
-        }
-    }
+    DealRadialDamage(Damage);
 }
 
 void APillarStrike::Tick(float DeltaSeconds)

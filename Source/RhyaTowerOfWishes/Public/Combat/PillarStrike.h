@@ -50,8 +50,6 @@ protected:
     float Damage = 20.f;
 
 private:
-    void ApplyEmergenceDamage();
-
     enum class EPhase : uint8
     {
         Rising,

@@ -20,6 +20,11 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Strike")
     float Radius = 0.f;
 
+    // Deals DamageAmount once to every pawn within Radius as RADIAL damage: the event carries
+    // this actor's location as the epicenter.
+    UFUNCTION(BlueprintCallable, Category = "Strike")
+    void DealRadialDamage(float DamageAmount);
+
     // Spawns Class at Transform with Radius already configured. Encapsulates the
     // SpawnActorDeferred/FinishSpawning ordering Radius's safety depends on, so callers never
     // need to know it - returns nullptr (after an ensure) if World/Class/the spawn itself fail.

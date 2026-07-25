@@ -17,6 +17,7 @@ PRAGMA_DISABLE_UNSAFE_TYPECAST_WARNINGS
 PRAGMA_RESTORE_UNSAFE_TYPECAST_WARNINGS
 #include "Items/Item.h"
 #include "Components/AttributeComponent.h"
+#include "Components/CapsuleComponent.h"
 #include "Items/Weapons/Weapon.h"
 #include "Components/BoxComponent.h"
 
@@ -438,6 +439,25 @@ float ACombatPlayerCharacter::TakeDamage(float DamageAmount, FDamageEvent const&
             {
                 DrawDebugDirectionalArrow(GetWorld(),
                     GetActorLocation() - PointEvent.ShotDirection * 150.f + FVector(0.f, 0.f, 50.f),
+                    GetActorLocation() + FVector(0.f, 0.f, 50.f),
+                    60.f, bBlocked ? FColor::Green : FColor::Red, false, 1.8f, SDPG_Foreground, 2.f);
+            }
+        }
+        else if (DamageEvent.IsOfType(FRadialDamageEvent::ClassID))
+        {
+            // The attack radiates from an epicenter (ApplyRadialDamage); face it to block.
+            // An epicenter inside the capsule's own footprint leaves no direction to face,
+            // so the held stance wins there rather than failing on geometry noise.
+            const FRadialDamageEvent& RadialEvent = static_cast<const FRadialDamageEvent&>(DamageEvent);
+            const FVector ToEpicenter = RadialEvent.Origin - GetActorLocation();
+            const float CapsuleRadius = GetCapsuleComponent()->GetScaledCapsuleRadius();
+            bBlocked = ToEpicenter.SizeSquared2D() <= FMath::Square(CapsuleRadius)
+                || IsDirectionInBlockCone(ToEpicenter);
+            VerdictSource = TEXT("radial-damage epicenter");
+            if (bCombatDebug)
+            {
+                DrawDebugDirectionalArrow(GetWorld(),
+                    RadialEvent.Origin + FVector(0.f, 0.f, 50.f),
                     GetActorLocation() + FVector(0.f, 0.f, 50.f),
                     60.f, bBlocked ? FColor::Green : FColor::Red, false, 1.8f, SDPG_Foreground, 2.f);
             }
