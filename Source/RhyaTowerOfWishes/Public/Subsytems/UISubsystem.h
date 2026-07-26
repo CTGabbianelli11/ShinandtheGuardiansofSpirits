@@ -15,9 +15,9 @@ class RHYATOWEROFWISHES_API UUISubsystem : public UGameInstanceSubsystem
 public:
 
     virtual void Initialize(FSubsystemCollectionBase& Collection) override;
-    virtual void Deinitialize() override;
+	virtual void Deinitialize() override;
 
-	//Overridable evvent for Blueprint
+	//Overridable event for Blueprint
 	UFUNCTION(BlueprintImplementableEvent, Category = "UI Subsystem", meta = (DisplayName = "On Subsystem Initialize"))
 	void K2_Initialize();
 };
