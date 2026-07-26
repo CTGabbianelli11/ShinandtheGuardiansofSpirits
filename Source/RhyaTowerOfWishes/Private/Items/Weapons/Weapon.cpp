@@ -2,6 +2,7 @@
 // Weapon.cpp
 #include "Items/Weapons/Weapon.h"
 #include "Characters/CombatPlayerCharacter.h"
+#include "Combat/CollisionChannels.h"
 #include "Components/SceneComponent.h"
 #include "Components/SphereComponent.h"
 #include "Components/BoxComponent.h"
@@ -21,6 +22,8 @@ AWeapon::AWeapon()
     WeaponBoxComponent = CreateDefaultSubobject<UBoxComponent>(TEXT("Weapon Box Collider"));
     WeaponBoxComponent->SetupAttachment(RootComponent);
     WeaponBoxComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    // Projectiles identify a deflecting weapon by this object type.
+    WeaponBoxComponent->SetCollisionObjectType(ECC_WeaponHitbox);
     WeaponBoxComponent->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Overlap);
 
 

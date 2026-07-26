@@ -1,5 +1,6 @@
 #include "Combat/HomingStrike.h"
 #include "Combat/CombatUtils.h"
+#include "Components/SphereComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 
@@ -50,6 +51,50 @@ void AHomingStrike::Detonate()
     OnDetonated();
     Rhya::DealRadialDamage(*this, Damage, ExplosionRadius);
     Destroy();
+}
+
+void AHomingStrike::OnWeaponHit(AActor* WeaponActor, const FHitResult& SweepResult)
+{
+    // A level-placed firer (gym dummy) has no instigator; the attack component always passes the
+    // firing actor as Owner, so that's the fallback target.
+    AActor* Firer = GetInstigator() ? static_cast<AActor*>(GetInstigator()) : GetOwner();
+    // Same fallback on the weapon side: Equip sets both, but an owned-only weapon still
+    // identifies its wielder.
+    APawn* Deflector = WeaponActor ? WeaponActor->GetInstigator() : nullptr;
+    if (!Deflector && WeaponActor)
+    {
+        Deflector = Cast<APawn>(WeaponActor->GetOwner());
+    }
+    if (!Firer || !Deflector || Firer == Deflector)
+    {
+        return;
+    }
+
+    // Chase the firer, and snap the heading so the parry reads instantly instead of TurnRate
+    // slowly hauling the shot around.
+    HomingTarget = Firer;
+    const FVector Back = (Firer->GetActorLocation() - GetActorLocation()).GetSafeNormal();
+    if (!Back.IsNearlyZero())
+    {
+        SetActorRotation(Back.Rotation());
+    }
+
+    // Re-attribute the shot to the deflector: the overlap guard and the radial-damage ignore
+    // list key off Owner/Instigator, so this one swap flips who is protected and who is a target.
+    if (AActor* OldOwner = GetOwner())
+    {
+        Sphere->IgnoreActorWhenMoving(OldOwner, false);
+    }
+    if (APawn* OldInstigator = GetInstigator())
+    {
+        Sphere->IgnoreActorWhenMoving(OldInstigator, false);
+    }
+    SetOwner(Deflector);
+    SetInstigator(Deflector);
+    Sphere->IgnoreActorWhenMoving(Deflector, true);
+
+    RestartFlight();
+    OnReflected();
 }
 
 AHomingStrike* AHomingStrike::SpawnConfigured(UWorld* World, TSubclassOf<AHomingStrike> Class, const FTransform& Transform, float InSpeed, float InLifeSeconds, float InTurnRate, AActor* Target, AActor* Owner, APawn* Instigator)

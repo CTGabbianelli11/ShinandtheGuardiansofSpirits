@@ -1,4 +1,5 @@
 #include "Combat/ProjectileStrike.h"
+#include "Combat/CollisionChannels.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/World.h"
@@ -15,9 +16,11 @@ AProjectileStrike::AProjectileStrike()
     Sphere->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
     Sphere->SetCollisionObjectType(ECC_WorldDynamic);
     Sphere->SetCollisionResponseToAllChannels(ECR_Ignore);
-    // Overlap pawns (damage), block world statics (stop and destroy on level geometry).
+    // Overlap pawns (damage), block world statics (stop and destroy on level geometry), overlap
+    // swinging weapon hitboxes (deflection hook).
     Sphere->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
     Sphere->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Block);
+    Sphere->SetCollisionResponseToChannel(ECC_WeaponHitbox, ECR_Overlap);
     Sphere->SetGenerateOverlapEvents(true);
 
     Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
@@ -37,6 +40,10 @@ void AProjectileStrike::BeginPlay()
     Super::BeginPlay();
 
     Sphere->OnComponentBeginOverlap.AddDynamic(this, &AProjectileStrike::OnSphereBeginOverlap);
+
+    // Re-assert after serialized data lands: BPs saved before the WeaponHitbox channel existed
+    // carry a response array without it, which silently overrides the constructor's Overlap.
+    Sphere->SetCollisionResponseToChannel(ECC_WeaponHitbox, ECR_Overlap);
 
     // The firer sits at the muzzle; never let the projectile's sweep catch on its own owner.
     if (AActor* OwnerActor = GetOwner())
@@ -89,8 +96,25 @@ void AProjectileStrike::OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComp
     {
         return;
     }
+    // Route by the toucher's object type: a weapon hitbox is a deflection, anything else a hit.
+    // Weapon touches don't spend the projectile - a deflected shot keeps flying.
+    if (OtherComp && OtherComp->GetCollisionObjectType() == ECC_WeaponHitbox)
+    {
+        OnWeaponHit(OtherActor, SweepResult);
+        return;
+    }
     bSpent = true;
     OnPawnHit(OtherActor, SweepResult);
+}
+
+void AProjectileStrike::OnWeaponHit(AActor* WeaponActor, const FHitResult& SweepResult)
+{
+}
+
+void AProjectileStrike::RestartFlight()
+{
+    Traveled = 0.f;
+    SetLifeSpan(MaxRange / Speed + 1.f);
 }
 
 void AProjectileStrike::OnPawnHit(AActor* OtherActor, const FHitResult& SweepResult)

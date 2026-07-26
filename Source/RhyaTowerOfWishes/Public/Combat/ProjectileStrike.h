@@ -41,6 +41,14 @@ protected:
     // Flight over without catching a pawn — blocking world hit or MaxRange spent. Base: vanish.
     virtual void OnFlightEnded();
 
+    // A swinging weapon hitbox (ECC_WeaponHitbox) touched the projectile, before any pawn did.
+    // Base: nothing — the projectile flies on through. Override to deflect.
+    virtual void OnWeaponHit(AActor* WeaponActor, const FHitResult& SweepResult);
+
+    // Grants a fresh MaxRange of flight from wherever the projectile is now (a deflection rearms
+    // both the range check and the lifespan leak guard).
+    void RestartFlight();
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Projectile Strike")
     USphereComponent* Sphere;
 
