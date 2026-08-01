@@ -196,6 +196,8 @@ private:
     UPROPERTY(EditDefaultsOnly, Category = "Montages")
     UAnimMontage* AttackMontage;
     UPROPERTY(EditDefaultsOnly, Category = "Montages")
+    UAnimMontage* AerialAttackMontage;
+    UPROPERTY(EditDefaultsOnly, Category = "Montages")
     UAnimMontage* DodgeMontage;
     UPROPERTY(EditDefaultsOnly, Category = "Montages")
     UAnimMontage* BlockMontage;

@@ -678,13 +678,26 @@ void ACombatPlayerCharacter::MovePlayerToEnemy(AActor* player, AActor* enemy)
 
 void ACombatPlayerCharacter::PlayAttackMontage()
 {
+    //There should always be a base attack montage to default to. Otherwise stop and tell user
+    if (!AttackMontage)
+    {
+        GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, TEXT("No Base AttackMontage Set. Aborting"));
+        return;
+    }
+
+    UAnimMontage* AttackMontageToUse = AttackMontage;
+
+    if (AerialAttackMontage && !GetCharacterMovement()->IsMovingOnGround())
+        AttackMontageToUse = AerialAttackMontage;
+
     if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
     {
-        if (AttackMontage)
+        if (AttackMontageToUse)
         {
-            AnimInstance->Montage_Play(AttackMontage);
-            AnimInstance->Montage_JumpToSection(GetCurrentAttack(), AttackMontage);
+            AnimInstance->Montage_Play(AttackMontageToUse);
+            AnimInstance->Montage_JumpToSection(GetCurrentAttack(), AttackMontageToUse);
         }
+
     }
 }
 
