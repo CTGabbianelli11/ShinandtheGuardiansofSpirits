@@ -157,6 +157,9 @@ protected:
     FRotator YawRotation;
 
 protected: 
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Montages")
+    UObject* CurrentAttackTarget;
+
     UFUNCTION(BlueprintCallable) void StartInputBuffer();   
     UFUNCTION(BlueprintCallable) void AttackEnd();
     UFUNCTION(BlueprintCallable) void EndBuffer();
@@ -198,6 +201,8 @@ private:
     UPROPERTY(EditDefaultsOnly, Category = "Montages")
     UAnimMontage* AerialAttackMontage;
     UPROPERTY(EditDefaultsOnly, Category = "Montages")
+    UAnimMontage* GroundToAirAttackMontage;
+    UPROPERTY(EditDefaultsOnly, Category = "Montages")
     UAnimMontage* DodgeMontage;
     UPROPERTY(EditDefaultsOnly, Category = "Montages")
     UAnimMontage* BlockMontage;
@@ -211,6 +216,7 @@ private:
     // Optional channel loop played while healing; heal works without it.
     UPROPERTY(EditDefaultsOnly, Category = "Montages")
     UAnimMontage* HealMontage;
+
 
     // Half-angle of the frontal block cone, measured from actor forward in the ground plane.
     UPROPERTY(EditDefaultsOnly, Category = "Combat|Block", meta = (ClampMin = "0.0", ClampMax = "180.0"))

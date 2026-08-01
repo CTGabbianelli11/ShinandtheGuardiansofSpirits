@@ -688,8 +688,13 @@ void ACombatPlayerCharacter::PlayAttackMontage()
     UAnimMontage* AttackMontageToUse = AttackMontage;
 
     if (AerialAttackMontage && !GetCharacterMovement()->IsMovingOnGround())
+    {
         AttackMontageToUse = AerialAttackMontage;
-
+    }
+    if (CurrentAttackTarget && GetCharacterMovement()->IsMovingOnGround() && Cast<AActor>(CurrentAttackTarget)->GetActorLocation().Z > GetActorLocation().Z + 100.f)
+    {
+        AttackMontageToUse = GroundToAirAttackMontage;
+    }
     if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
     {
         if (AttackMontageToUse)
