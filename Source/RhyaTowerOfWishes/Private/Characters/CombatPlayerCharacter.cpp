@@ -168,6 +168,11 @@ void ACombatPlayerCharacter::SetAttackNumber(int AttackNumber)
     OnComboIndexChanged.Broadcast(comboIndex);
 }
 
+void ACombatPlayerCharacter::SetActionState(EactionState ActionState)
+{
+    actionState = ActionState;
+}
+
 int ACombatPlayerCharacter::GetAttackNumber()
 {
     return comboIndex;
@@ -196,7 +201,6 @@ void ACombatPlayerCharacter::Attack(const FInputActionValue& /*Value*/)
         equippedWeapon->ignoreActors.Empty();
 
         PlayAttackMontage();
-        actionState = EactionState::EAS_Attacking;
     }
 }
 
@@ -219,7 +223,7 @@ void ACombatPlayerCharacter::DefensiveAction(const FInputActionValue& Value)
 
 void ACombatPlayerCharacter::StartDodge()
 {
-    actionState = EactionState::EAS_Dodging;
+    SetActionState( EactionState::EAS_Dodging);
 
     const FVector DodgeDir = GetMoveInputWorldDirection();
     if (!DodgeDir.IsZero())
@@ -241,7 +245,7 @@ void ACombatPlayerCharacter::EndDodge()
 
 void ACombatPlayerCharacter::StartBlock()
 {
-    actionState = EactionState::EAS_Blocking;
+    SetActionState( EactionState::EAS_Blocking);
 
     if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
     {
@@ -254,7 +258,7 @@ void ACombatPlayerCharacter::EndBlock()
     if (actionState != EactionState::EAS_Blocking)
         return;
 
-    actionState = EactionState::EAS_Unoccupied;
+    SetActionState(EactionState::EAS_Unoccupied);
 
     if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
     {
@@ -288,7 +292,7 @@ void ACombatPlayerCharacter::StartHeal()
         return;
     }
 
-    actionState = EactionState::EAS_Healing;
+    SetActionState(EactionState::EAS_Healing);
 
     if (HealMontage)
     {
@@ -390,7 +394,7 @@ void ACombatPlayerCharacter::ResumeBlockIfHeld()
     }
     else
     {
-        actionState = EactionState::EAS_Unoccupied;
+        SetActionState(EactionState::EAS_Unoccupied);
     }
 }
 
@@ -514,7 +518,7 @@ float ACombatPlayerCharacter::TakeDamage(float DamageAmount, FDamageEvent const&
         }
 
         // The block break is decided here; GetHit never resets a blocking player's state.
-        actionState = EactionState::EAS_Unoccupied;
+        SetActionState(EactionState::EAS_Unoccupied);
         if (bCombatDebug)
         {
             DrawCombatText(this, FString::Printf(TEXT("BLOCK BROKEN  %.1f dmg  [%s]"),
@@ -596,7 +600,7 @@ void ACombatPlayerCharacter::GetHit_Implementation(const FVector& impactPoint, c
         {
             AnimInstance->Montage_Play(HitReactMontage);
             // An unblocked hit breaks whatever you were doing, including a held guard.
-            actionState = EactionState::EAS_Unoccupied;
+            SetActionState(EactionState::EAS_Unoccupied);
             // Re-raise the guard once the stagger ends, if block is still held.
             FOnMontageEnded EndDelegate;
             EndDelegate.BindUObject(this, &ACombatPlayerCharacter::OnHitReactMontageEnded);
@@ -708,24 +712,23 @@ void ACombatPlayerCharacter::PlayAttackMontage()
 
 void ACombatPlayerCharacter::AttackEnd()
 {
-    actionState = EactionState::EAS_Unoccupied;
+    SetActionState(EactionState::EAS_Unoccupied);
     SetAttackNumber(0);
 }
 
 void ACombatPlayerCharacter::StartInputBuffer()
 {
-    actionState = EactionState::EAS_Comboing;
+    SetActionState(EactionState::EAS_Comboing);
 }
 
 void ACombatPlayerCharacter::EndBuffer()
 {
-    actionState = EactionState::EAS_Unoccupied;
+    SetActionState(EactionState::EAS_Unoccupied);
 }
 
 FName ACombatPlayerCharacter::GetCurrentAttack()
 {
-    SetAttackNumber(comboIndex+1);
-    if (comboIndex > 3) comboIndex = 1;
+
     return FName("Attack " + FString::FromInt(comboIndex));
 }
 

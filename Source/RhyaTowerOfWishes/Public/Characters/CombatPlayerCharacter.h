@@ -71,8 +71,10 @@ public:
     AWeapon* SpawnAndEquipWeapon(TSubclassOf<AWeapon> Weapon);
 
     UAttributeComponent* GetAttributes() { return attributeComponent; }
-
+    UFUNCTION(BlueprintCallable, Category = "ComboIndex")
     void SetAttackNumber(int AttackNumber);
+    UFUNCTION(BlueprintCallable, Category = "ComboIndex")
+    void SetActionState(EactionState ActionState);
     UFUNCTION(BlueprintPure, Category = "ComboIndex")
     int GetAttackNumber();
 
@@ -116,6 +118,7 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input)
     int maxComboNumber = 3;
 
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Attacks)
     int comboIndex = 0;
 
     UFUNCTION(BlueprintImplementableEvent)
