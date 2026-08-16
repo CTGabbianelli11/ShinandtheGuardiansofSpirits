@@ -11,6 +11,9 @@
  * FinishSpawning() - the Construction Script then reads it to resize whatever component defines
  * the strike's reach (e.g. an overlap sphere).
  */
+
+ // For parameters (Pass the type, then the parameter name):
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnStrikeHappened, FVector, impactLocation,FRotator, impactRotation);
 UCLASS()
 class RHYATOWEROFWISHES_API AStrikeActor : public AActor
 {
@@ -29,4 +32,8 @@ public:
     // SpawnActorDeferred/FinishSpawning ordering Radius's safety depends on, so callers never
     // need to know it - returns nullptr (after an ensure) if World/Class/the spawn itself fail.
     static AStrikeActor* SpawnConfigured(UWorld* World, TSubclassOf<AStrikeActor> Class, const FTransform& Transform, float Radius, AActor* Owner, APawn* Instigator);
+
+    // Spawned at end of telegraph to add vfx at end impact point.
+    UPROPERTY(BlueprintAssignable, Category = "Events")
+    FOnStrikeHappened StrikeHappened;
 };

@@ -7,6 +7,7 @@
 class ATelegraphActor;
 class AStrikeActor;
 
+
 /**
  * Throws a cosmetic projectile on an arc while a ground telegraph warns the landing spot; when
  * the telegraph's wind-up completes it spawns StrikeClass there. The projectile carries no
