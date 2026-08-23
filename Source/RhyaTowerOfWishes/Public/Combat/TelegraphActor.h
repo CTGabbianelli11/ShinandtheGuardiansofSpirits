@@ -52,10 +52,12 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Telegraph")
     UMaterialInterface* TelegraphMaterial;
 
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Telegraph")
+    float Elapsed = 0.f;
 private:
     UPROPERTY(Transient)
     UMaterialInstanceDynamic* DecalMID = nullptr;
 
-    float Elapsed = 0.f;
+
     bool bStruck = false;
 };
