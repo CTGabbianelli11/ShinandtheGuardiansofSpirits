@@ -35,9 +35,9 @@ void AEnemy::PlayHitReactMontage_Implementation(const FName& sectionName)
 	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
 	if (AnimInstance && HitReactMontage)
 	{
-		AnimInstance->Montage_Play(HitReactMontage);
+		AnimInstance->Montage_Play(HitReactMontage,1.f, EMontagePlayReturnType::Duration,0.f, true);
 
-		//GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Red, sectionName.ToString(), false);
+		GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Red, sectionName.ToString(), false);
 		AnimInstance->Montage_JumpToSection(sectionName, HitReactMontage);
 	}
 }
@@ -142,36 +142,36 @@ void AEnemy::DirectionalHitReact(const FVector& impactPoint, const FVector impac
 	UKismetSystemLibrary::DrawDebugArrow(this, GetActorLocation(), GetActorLocation() + CrossProduct * 100.f, 5.f, FColor::Blue, 5.f);
 
 	FName Section("FromLeft");
-	//if (Theta >= -45.f && Theta < 45.f)
-	//{
-	//Section = FName("FromFront");
-	//}
+	if (Theta >= -45.f && Theta < 45.f)
+	{
+	Section = FName("FromFront");
+	}
 	//Note : Uncomment when animations in montage are added
-	if (Theta >= -135.f && Theta < 45.f)
+	else if (Theta >= -135.f && Theta < 45.f)
+	{
+		Section = FName("FromLeft");
+	}
+	else if( Theta >= 45.f && Theta < 135.f)
 	{
 		Section = FName("FromRight");
 	}
-	//else if( Theta >= 45.f && Theta < 135.f)
-	//{
-	//	Section = FName("FromRight");
-	//}
-	//else
-	//{
-	//	Section = FName("FromBack");
-	//}
+	else
+	{
+		Section = FName("FromBack");
+	}
 
 	//GetMesh()->AddImpulseAtLocation(ToHit*100000.f,GetActorLocation(),FName("Root"));
 
-	PlayHitReactMontage(Section);
+	PlayHitReactMontage_Implementation(Section);
 
 	//NOTE: Move to health logic later
 
 	//if (GEngine)
 	//{
-	//	GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Green, FString::Printf(TEXT("Theta: %f"), Theta), false);
+	GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Green, FString::Printf(TEXT("Theta: %f"), Theta), false);
 
 	//}
-	//UKismetSystemLibrary::DrawDebugArrow(this, GetActorLocation(), GetActorLocation() + Forward * 60.f, 5.f, FColor::Red, 5.f);
+	UKismetSystemLibrary::DrawDebugArrow(this, GetActorLocation(), GetActorLocation() + Forward * 60.f, 5.f, FColor::Red, 5.f);
 	//UKismetSystemLibrary::DrawDebugArrow(this, GetActorLocation(), GetActorLocation() + ToHit * 60.f, 5.f, FColor::Green, 5.f);
 }
 
