@@ -83,7 +83,7 @@ void AEnemy::GetHit_Implementation(const FVector& impactPoint, const FVector& im
 
 	if (attributes && attributes->IsAlive())
 	{
-		//hitStopComponent->BeginHitStop(.2f,0,30,20,true);
+		hitStopComponent->BeginHitStop(.2f,0,30,20,true);
 		DirectionalHitReact(impactPoint, ToHit);
 	}
 }
@@ -177,9 +177,11 @@ void AEnemy::DirectionalHitReact(const FVector& impactPoint, const FVector impac
 
 float AEnemy::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
+	if (DamageAmount >= 20.f)
+		PlayHitReactMontage_Implementation(FName("BigHit"));
 	if (attributes)
 	{
-		//GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Red, FString::Printf(TEXT("Example text that prints a float: %f"), DamageAmount), false);
+		GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Red, FString::Printf(TEXT("Example text that prints a float: %f"), DamageAmount), false);
 
 		attributes->ReceiveDamage(DamageAmount);
 	}

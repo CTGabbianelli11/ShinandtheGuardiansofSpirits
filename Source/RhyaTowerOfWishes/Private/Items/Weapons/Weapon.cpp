@@ -133,6 +133,23 @@ void AWeapon::OnBoxOverlap(UPrimitiveComponent* OverlappedComponent, AActor* Oth
         const bool bTargetWasAlive =
             HitEnemy && HitEnemy->GetAttributes() && HitEnemy->GetAttributes()->IsAlive();
 
+        // Play Hit Reaction
+        bool hitInterfaceImplemented =
+            HitActor->Implements<UHitInterface>();
+
+        if (hitInterfaceImplemented)
+        {
+            IHitInterface::Execute_GetHit(HitActor, BoxHit.ImpactPoint, BoxHit.ImpactNormal);
+
+            if (ACombatPlayerCharacter* PlayerOwner = Cast<ACombatPlayerCharacter>(GetOwner()))
+            {
+                if (PlayerOwner->hitStopComponent)
+                {
+                    PlayerOwner->hitStopComponent->BeginHitStop(.15f, .05f, 30, 1, false);
+                }
+            }
+        }
+
         // Apply damage
         UGameplayStatics::ApplyDamage(
             HitActor,
@@ -182,21 +199,7 @@ void AWeapon::OnBoxOverlap(UPrimitiveComponent* OverlappedComponent, AActor* Oth
                 FColor::Orange, 1.8f, /*bDrawShadow*/ true, /*FontScale*/ 1.25f);
         }
 
-        bool hitInterfaceImplemented =
-            HitActor->Implements<UHitInterface>();
-        // Post-damage hit reaction
-        if (hitInterfaceImplemented)
-        {
-            IHitInterface::Execute_GetHit(HitActor,BoxHit.ImpactPoint,BoxHit.ImpactNormal);
 
-            if (ACombatPlayerCharacter* PlayerOwner = Cast<ACombatPlayerCharacter>(GetOwner()))
-            {
-                if (PlayerOwner->hitStopComponent)
-                {
-                    PlayerOwner->hitStopComponent->BeginHitStop(.15f, .05f, 30, 1, false);
-                }
-            }
-        }
 
         ignoreActors.AddUnique(HitActor);
 

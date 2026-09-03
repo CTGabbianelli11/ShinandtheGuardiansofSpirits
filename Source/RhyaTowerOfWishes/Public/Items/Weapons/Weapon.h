@@ -50,7 +50,9 @@ public:
     UFUNCTION(BlueprintPure, Category = "Weapon|Collision")
     UBoxComponent* GetWeaponBoxComponent() const { return WeaponBoxComponent; }
 
-
+    // Current computed damage (used in ApplyDamage)
+    UPROPERTY(BlueprintReadWrite, Category = "Weapon|Runtime", meta = (AllowPrivateAccess = "true"))
+    float damage = 0.0f;
     // ===== Events =====
     UPROPERTY(BlueprintAssignable, Category = "Weapon|Events")
     FOnWeaponEquipped OnEquipped;
@@ -105,9 +107,7 @@ private:
     USoundBase* MissSoundEffect = nullptr;
 
 
-    // Current computed damage (used in ApplyDamage)
-    UPROPERTY(BlueprintReadOnly, Category = "Weapon|Runtime", meta = (AllowPrivateAccess = "true"))
-    float damage = 0.0f;
+
 
     UPROPERTY(BlueprintReadOnly, Category = "Weapon|State", meta = (AllowPrivateAccess = "true"))
     bool bIsEquipped = false;
