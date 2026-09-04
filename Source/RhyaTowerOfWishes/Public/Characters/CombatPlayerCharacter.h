@@ -47,7 +47,7 @@ public:
                              AController* EventInstigator, AActor* DamageCauser) override;
 
     // Interface overrides
-    virtual void GetHit_Implementation(const FVector& impactPoint, const FVector& impactDirection) override;
+    virtual void GetHit_Implementation(const FVector& impactPoint, const FVector& impactDirection, const float& damage) override;
 
     virtual void CharacterDied() override;
 

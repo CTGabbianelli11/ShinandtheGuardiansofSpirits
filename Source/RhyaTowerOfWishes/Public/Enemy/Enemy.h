@@ -26,7 +26,7 @@ public:
 
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
-	virtual void GetHit_Implementation(const FVector& impactPoint, const FVector& impactDirection) override;
+	virtual void GetHit_Implementation(const FVector& impactPoint, const FVector& impactDirection, const float& damage) override;
 	virtual void CharacterDied() override;
 
 	void DirectionalHitReact(const FVector& impactPoint, const FVector impactDirection);

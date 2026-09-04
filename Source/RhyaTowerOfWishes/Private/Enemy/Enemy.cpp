@@ -61,7 +61,7 @@ void AEnemy::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 }
 
-void AEnemy::GetHit_Implementation(const FVector& impactPoint, const FVector& impactDirection)
+void AEnemy::GetHit_Implementation(const FVector& impactPoint, const FVector& impactDirection, const float& damage)
 {
 	//DRAW_SPHERE_COLOR(impactPoint,FColor::Orange);
 
@@ -84,7 +84,13 @@ void AEnemy::GetHit_Implementation(const FVector& impactPoint, const FVector& im
 	if (attributes && attributes->IsAlive())
 	{
 		hitStopComponent->BeginHitStop(.2f,0,30,20,true);
+		if(damage >= 20.f)
+			PlayHitReactMontage_Implementation(FName("BigHit"));
+		else
+		{
 		DirectionalHitReact(impactPoint, ToHit);
+		}
+
 	}
 }
 
@@ -133,6 +139,12 @@ void AEnemy::DirectionalHitReact(const FVector& impactPoint, const FVector impac
 	//convert from radians to degrees
 	Theta = FMath::RadiansToDegrees(Theta);
 
+	if (GetCharacterMovement()->IsFalling())
+	{
+		PlayHitReactMontage_Implementation("SmallHit");
+		return;
+	}
+
 	//if cross product points down theta is negative
 	FVector CrossProduct = FVector::CrossProduct(Forward, impactDirection);
 	if (CrossProduct.Z < 0)
@@ -168,17 +180,15 @@ void AEnemy::DirectionalHitReact(const FVector& impactPoint, const FVector impac
 
 	//if (GEngine)
 	//{
-	GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Green, FString::Printf(TEXT("Theta: %f"), Theta), false);
+	//GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Green, FString::Printf(TEXT("Theta: %f"), Theta), false);
 
 	//}
-	UKismetSystemLibrary::DrawDebugArrow(this, GetActorLocation(), GetActorLocation() + Forward * 60.f, 5.f, FColor::Red, 5.f);
+	//UKismetSystemLibrary::DrawDebugArrow(this, GetActorLocation(), GetActorLocation() + Forward * 60.f, 5.f, FColor::Red, 5.f);
 	//UKismetSystemLibrary::DrawDebugArrow(this, GetActorLocation(), GetActorLocation() + ToHit * 60.f, 5.f, FColor::Green, 5.f);
 }
 
 float AEnemy::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
-	if (DamageAmount >= 20.f)
-		PlayHitReactMontage_Implementation(FName("BigHit"));
 	if (attributes)
 	{
 		GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Red, FString::Printf(TEXT("Example text that prints a float: %f"), DamageAmount), false);

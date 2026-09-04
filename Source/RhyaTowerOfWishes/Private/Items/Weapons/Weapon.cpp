@@ -139,7 +139,7 @@ void AWeapon::OnBoxOverlap(UPrimitiveComponent* OverlappedComponent, AActor* Oth
 
         if (hitInterfaceImplemented)
         {
-            IHitInterface::Execute_GetHit(HitActor, BoxHit.ImpactPoint, BoxHit.ImpactNormal);
+            IHitInterface::Execute_GetHit(HitActor, BoxHit.ImpactPoint, BoxHit.ImpactNormal,damage);
 
             if (ACombatPlayerCharacter* PlayerOwner = Cast<ACombatPlayerCharacter>(GetOwner()))
             {

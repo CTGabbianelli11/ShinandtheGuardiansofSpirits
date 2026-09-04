@@ -556,7 +556,7 @@ bool ACombatPlayerCharacter::IsDirectionInBlockCone(const FVector& ToSource) con
     return FVector::DotProduct(GetActorForwardVector(), Dir) >= CosThreshold;
 }
 
-void ACombatPlayerCharacter::GetHit_Implementation(const FVector& impactPoint, const FVector& impactDirection)
+void ACombatPlayerCharacter::GetHit_Implementation(const FVector& impactPoint, const FVector& impactDirection, const float& damage )
 {
     // A hit interrupts a heal channel (you were never blocking, so this is an unblocked hit).
     if (actionState == EactionState::EAS_Healing)

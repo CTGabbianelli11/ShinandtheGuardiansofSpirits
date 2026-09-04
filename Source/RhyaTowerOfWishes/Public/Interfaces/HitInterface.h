@@ -23,5 +23,5 @@ class RHYATOWEROFWISHES_API IHitInterface
 	// Add interface functions to this class. This is the class that will be inherited to implement this interface.
 public:
 	UFUNCTION(BlueprintNativeEvent,BlueprintCallable)
-	void GetHit(const FVector& impactPoint, const FVector& impactDirection);
+	void GetHit(const FVector& impactPoint, const FVector& impactDirection,const float& damage);
 };

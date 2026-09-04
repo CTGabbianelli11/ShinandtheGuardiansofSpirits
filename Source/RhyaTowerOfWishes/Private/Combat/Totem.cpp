@@ -48,7 +48,7 @@ float ATotem::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AC
     return DamageAmount;
 }
 
-void ATotem::GetHit_Implementation(const FVector& impactPoint, const FVector& impactDirection)
+void ATotem::GetHit_Implementation(const FVector& impactPoint, const FVector& impactDirection,const float& damage)
 {
     OnTotemHit(impactPoint, impactDirection);
 }
