@@ -183,6 +183,7 @@ void ACombatPlayerCharacter::Attack(const FInputActionValue& /*Value*/)
 {
     if (CanAttack())
     {
+        actionState = EactionState::EAS_Attacking;
 
         GetCharacterMovement()->RotationRate = FRotator(0, 50000, 0);
 

@@ -186,6 +186,7 @@ private:
     ECharacterState state = ECharacterState::ECS_Unequipped;
 
     UPROPERTY(BlueprintReadWrite, meta = (AllowPrivateAccess = true))
+
     EactionState actionState = EactionState::EAS_Unoccupied;
 
     UPROPERTY(VisibleAnywhere)
