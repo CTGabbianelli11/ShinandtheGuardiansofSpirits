@@ -10,14 +10,15 @@ class FRhyaTowerOfWishesEditorModule : public IModuleInterface
 public:
 	virtual void StartupModule() override
 	{
+
 		if (!ensureMsgf(GUnrealEd, TEXT("RhyaTowerOfWishesEditor: GUnrealEd is null in StartupModule - module LoadingPhase must be PostEngineInit")))
 		{
 			return;
 		}
 
-		TSharedPtr<FComponentVisualizer> Visualizer = MakeShared<FPillarFieldComponentVisualizer>();
-		GUnrealEd->RegisterComponentVisualizer(UPillarFieldComponent::StaticClass()->GetFName(), Visualizer);
-		Visualizer->OnRegister();
+		//TSharedPtr<FComponentVisualizer> Visualizer = MakeShared<FPillarFieldComponentVisualizer>();
+		//GUnrealEd->RegisterComponentVisualizer(UPillarFieldComponent::StaticClass()->GetFName(), Visualizer);
+		//Visualizer->OnRegister();
 	}
 
 	virtual void ShutdownModule() override
