@@ -5,12 +5,13 @@
 #include "WallStrike.generated.h"
 
 class UBoxComponent;
+class UNiagaraSystem;
 class UStaticMeshComponent;
 
 /**
  * A sliding wall: spawns visible but hitless so the player sees it during the telegraph, then
  * after WindupTime arms its collision and slides TravelDistance along its forward axis at
- * SlideSpeed, damaging each pawn it sweeps through once, then destroys itself.
+ * SlideSpeed, damaging each pawn it sweeps through once, then shatters at the endpoint.
  *
  * The collision box is the root and is sized from the mesh's bounds in OnConstruction, so the
  * mesh is the single source of truth for the wall's size - iterate by resizing the mesh in the
@@ -61,7 +62,16 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wall Strike", meta = (ClampMin = "0.0"))
     float Damage = 20.f;
 
+    // One-shot effect at the mesh's center when the slide completes. It outlives the wall and
+    // auto-destroys when finished. User.WallSize supplies the mesh's full size in effect-local
+    // units (X = thickness, Y = width, Z = height for an unrotated mesh). Leave unset for no VFX.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wall Strike|Effects")
+    UNiagaraSystem* ShatterEffect = nullptr;
+
 private:
+    // Only a completed slide shatters; cancellation/level cleanup should not spawn an effect.
+    void Shatter();
+
     UFUNCTION()
     void OnBoxBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
 

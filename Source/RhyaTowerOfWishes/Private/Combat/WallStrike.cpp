@@ -5,6 +5,8 @@
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "Kismet/GameplayStatics.h"
+#include "NiagaraComponent.h"
+#include "NiagaraFunctionLibrary.h"
 
 AWallStrike::AWallStrike()
 {
@@ -79,11 +81,35 @@ void AWallStrike::Tick(float DeltaSeconds)
         Traveled += Step;
         if (Traveled >= TravelDistance)
         {
-            Destroy();
+            Shatter();
         }
         break;
     }
     }
+}
+
+void AWallStrike::Shatter()
+{
+    SetActorEnableCollision(false);
+    SetActorTickEnabled(false);
+    Mesh->SetVisibility(false);
+
+    if (ShatterEffect && Mesh->GetStaticMesh())
+    {
+        const FBox MeshBounds = Mesh->GetStaticMesh()->GetBoundingBox();
+        const FTransform MeshTransform = Mesh->GetComponentTransform();
+        // Spawn independently so destroying the wall (and its attached smoke) cannot kill the
+        // shatter particles. Set dimensions before activation so the first burst sees them.
+        if (UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+                this, ShatterEffect, MeshTransform.TransformPosition(MeshBounds.GetCenter()),
+                MeshTransform.Rotator(), FVector::OneVector, true, false))
+        {
+            Effect->SetVariableVec3(TEXT("User.WallSize"), MeshBounds.GetSize() * MeshTransform.GetScale3D().GetAbs());
+            Effect->Activate();
+        }
+    }
+
+    Destroy();
 }
 
 void AWallStrike::OnBoxBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
