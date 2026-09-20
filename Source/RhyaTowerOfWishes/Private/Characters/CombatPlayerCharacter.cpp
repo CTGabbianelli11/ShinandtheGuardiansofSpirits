@@ -92,7 +92,7 @@ void ACombatPlayerCharacter::Move(const FInputActionValue& Value)
 
     movementVector = Value.Get<FVector2D>();
 
-    GEngine->AddOnScreenDebugMessage(0, 1.f, FColor::Red, FString::Printf(TEXT("%f"), movementVector.Size()));
+    //GEngine->AddOnScreenDebugMessage(0, 1.f, FColor::Red, FString::Printf(TEXT("%f"), movementVector.Size()));
 
 
     const FRotator controlRotation = GetControlRotation();
