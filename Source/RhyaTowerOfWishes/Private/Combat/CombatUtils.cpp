@@ -5,6 +5,13 @@
 #include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
+#include "DrawDebugHelpers.h"
+#include "HAL/IConsoleManager.h"
+
+static TAutoConsoleVariable<int32> CVarRadialDamageDebug(
+    TEXT("Rhya.Debug.RadialDamage"), 0,
+    TEXT("Radial damage diagnostics: 0 = off, 1 = log queries and returned damage, 2 = also draw the sphere and hit points."),
+    ECVF_Cheat);
 
 namespace Rhya
 {
@@ -26,6 +33,18 @@ namespace Rhya
         TArray<FOverlapResult> Overlaps;
         World->OverlapMultiByObjectType(Overlaps, Dealer.GetActorLocation(), FQuat::Identity, ObjectParams, FCollisionShape::MakeSphere(Radius), QueryParams);
 
+        const int32 DebugLevel = CVarRadialDamageDebug.GetValueOnGameThread();
+        if (DebugLevel > 0)
+        {
+            UE_LOG(LogTemp, Display, TEXT("[RadialDamage] Dealer=%s Origin=%s Radius=%.2f Requested=%.2f ComponentOverlaps=%d Owner=%s Instigator=%s"),
+                *Dealer.GetName(), *Dealer.GetActorLocation().ToCompactString(), Radius, DamageAmount,
+                Overlaps.Num(), *GetNameSafe(Dealer.GetOwner()), *GetNameSafe(Dealer.GetInstigator()));
+        }
+        if (DebugLevel > 1)
+        {
+            DrawDebugSphere(World, Dealer.GetActorLocation(), Radius, 32, FColor::Cyan, false, 6.f);
+        }
+
         AController* InstigatorController = Dealer.GetInstigator() ? Dealer.GetInstigator()->GetController() : nullptr;
 
         FRadialDamageEvent RadialEvent;
@@ -39,10 +58,35 @@ namespace Rhya
             UPrimitiveComponent* HitComponent = Overlap.GetComponent();
             if (HitActor && HitComponent && !Damaged.Contains(HitActor))
             {
+                FVector HitLocation;
+                const float CollisionDistance = HitComponent->GetClosestPointOnCollision(RadialEvent.Origin, HitLocation);
+                if (!ensureAlwaysMsgf(CollisionDistance >= 0.f,
+                    TEXT("Rhya::DealRadialDamage: closest-point query failed for component %s (dealer %s)."),
+                    *HitComponent->GetPathName(), *Dealer.GetPathName()))
+                {
+                    continue;
+                }
                 Damaged.Add(HitActor);
-                const FVector HitLocation = HitComponent->GetComponentLocation();
-                RadialEvent.ComponentHits = { FHitResult(HitActor, HitComponent, HitLocation, (HitLocation - RadialEvent.Origin).GetSafeNormal()) };
-                HitActor->TakeDamage(DamageAmount, RadialEvent, InstigatorController, &Dealer);
+                const FVector HitNormal = (RadialEvent.Origin - HitLocation).GetSafeNormal();
+                RadialEvent.ComponentHits = { FHitResult(HitActor, HitComponent, HitLocation, HitNormal) };
+                const float AppliedDamage = HitActor->TakeDamage(DamageAmount, RadialEvent, InstigatorController, &Dealer);
+                if (DebugLevel > 0)
+                {
+                    const FVector Offset = HitLocation - RadialEvent.Origin;
+                    UE_LOG(LogTemp, Display, TEXT("[RadialDamage] Dealer=%s Target=%s Component=%s Overlap=true HitPoint=%s XYDistance=%.2f ZOffset=%.2f HitDistance3D=%.2f Radius=%.2f RadialScale=%.2f Requested=%.2f Applied=%.2f"),
+                        *Dealer.GetName(), *HitActor->GetName(), *HitComponent->GetName(), *HitLocation.ToCompactString(),
+                        Offset.Size2D(), Offset.Z, Offset.Size(), Radius,
+                        RadialEvent.Params.GetDamageScale(static_cast<float>(Offset.Size())), DamageAmount, AppliedDamage);
+                    if (DebugLevel > 1)
+                    {
+                        const FColor Color = AppliedDamage > 0.f ? FColor::Green : FColor::Orange;
+                        DrawDebugLine(World, RadialEvent.Origin, HitLocation, Color, false, 6.f, 0, 2.f);
+                        DrawDebugPoint(World, HitLocation, 12.f, Color, false, 6.f);
+                        DrawDebugString(World, HitLocation + FVector(0.f, 0.f, 30.f),
+                            FString::Printf(TEXT("Radial: %.0f applied / %.0f requested"), AppliedDamage, DamageAmount),
+                            nullptr, Color, 6.f);
+                    }
+                }
             }
         }
     }
