@@ -1,5 +1,6 @@
 #include "Combat/PillarStrike.h"
 #include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
 
 APillarStrike::APillarStrike()
 {
@@ -10,8 +11,32 @@ APillarStrike::APillarStrike()
 
     Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
     Mesh->SetupAttachment(Root);
-    // Damage is a one-shot query in ApplyEmergenceDamage; the mesh never touches the physics scene.
+    // Damage is a one-shot query in BeginPlay; the mesh never touches the physics scene.
     Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+}
+
+void APillarStrike::OnConstruction(const FTransform& Transform)
+{
+    Super::OnConstruction(Transform);
+
+    const UStaticMesh* StaticMesh = Mesh->GetStaticMesh();
+    if (!StaticMesh)
+    {
+        return; 
+    }
+
+    // infer the mesh scale from radius.
+    const FVector Extent = StaticMesh->GetBounds().BoxExtent;
+    const double MeshRadius = FMath::Max(Extent.X, Extent.Y);
+    if (!ensureAlwaysMsgf(MeshRadius > UE_SMALL_NUMBER,
+        TEXT("%s: pillar mesh %s must have nonzero horizontal bounds."),
+        *GetPathName(), *StaticMesh->GetPathName()))
+    {
+        return;
+    }
+
+    const double HorizontalScale = Radius / MeshRadius;
+    Mesh->SetRelativeScale3D(FVector(HorizontalScale, HorizontalScale, HeightScale));
 }
 
 void APillarStrike::BeginPlay()

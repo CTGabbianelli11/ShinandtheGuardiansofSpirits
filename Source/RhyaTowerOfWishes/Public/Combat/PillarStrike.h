@@ -11,6 +11,7 @@ class UStaticMeshComponent;
  * A telegraph's StrikeClass placeholder: on spawn it damages everything in Radius once at
  * emergence (matching the warning the decal showed), then its mesh rises from underground, holds,
  * sinks back, and the actor destroys itself. BP child supplies the mesh/material.
+ * Construction fits the mesh's horizontal bounds to Radius, preserving its XY proportions.
  */
 UCLASS()
 class RHYATOWEROFWISHES_API APillarStrike : public AStrikeActor
@@ -22,6 +23,7 @@ public:
     virtual void Tick(float DeltaSeconds) override;
 
 protected:
+    virtual void OnConstruction(const FTransform& Transform) override;
     virtual void BeginPlay() override;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Pillar Strike")
@@ -29,6 +31,10 @@ protected:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Pillar Strike")
     UStaticMeshComponent* Mesh;
+
+    // Vertical mesh scale. Horizontal scale is calculated automatically from Radius and mesh bounds.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pillar Strike", meta = (ClampMin = "0.01"))
+    float HeightScale = 6.f;
 
     // Seconds for the mesh to rise from -RiseDistance to 0.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pillar Strike", meta = (ClampMin = "0.01"))
