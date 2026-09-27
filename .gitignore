@@ -173,3 +173,27 @@ fabric.properties
 !.idea/runConfigurations
 
 # End of https://www.toptal.com/developers/gitignore/api/jetbrains+all
+Windows/Engine/Binaries/ThirdParty/Vulkan/Win64/VkLayer_api_dump.json
+Windows/Engine/Binaries/ThirdParty/Vulkan/Win64/VkLayer_crash_diagnostic.json
+Windows/Engine/Binaries/ThirdParty/Vulkan/Win64/VkLayer_gfxreconstruct.json
+Windows/Engine/Binaries/ThirdParty/Vulkan/Win64/VkLayer_khronos_profiles.json
+Windows/Engine/Binaries/ThirdParty/Vulkan/Win64/VkLayer_khronos_shader_object.json
+Windows/Engine/Binaries/ThirdParty/Vulkan/Win64/VkLayer_khronos_synchronization2.json
+Windows/Engine/Binaries/ThirdParty/Vulkan/Win64/VkLayer_khronos_validation.json
+Windows/Engine/Config/StagedBuild_RhyaTowerOfWishes.ini
+Windows/Engine/Content/Renderer/TessellationTable.bin
+Windows/Engine/Content/Slate/Cursor/invisible.cur
+Windows/Engine/Content/SlateDebug/Fonts/LastResort.tps
+Windows/Engine/Content/SlateDebug/Fonts/LastResort.ttf
+Windows/Engine/Extras/GPUDumpViewer/GPUDumpViewer.html
+Windows/Engine/Extras/GPUDumpViewer/OpenGPUDumpViewer.bat
+Windows/Engine/Extras/GPUDumpViewer/OpenGPUDumpViewer.sh
+Windows/Manifest_DebugFiles_Win64.txt
+Windows/Manifest_NonUFSFiles_Win64.txt
+Windows/Manifest_UFSFiles_Win64.txt
+Windows/RhyaTowerOfWishes/Binaries/Win64/RhyaTowerOfWishes.pdb
+Windows/RhyaTowerOfWishes/Content/Paks/global.ucas
+Windows/RhyaTowerOfWishes/Content/Paks/global.utoc
+Windows/RhyaTowerOfWishes/Content/Paks/RhyaTowerOfWishes-Windows.pak
+Windows/RhyaTowerOfWishes/Content/Paks/RhyaTowerOfWishes-Windows.ucas
+Windows/RhyaTowerOfWishes/Content/Paks/RhyaTowerOfWishes-Windows.utoc
