@@ -1,5 +1,6 @@
 #include "Combat/TelegraphActor.h"
 #include "Combat/StrikeActor.h"
+#include "Combat/RingStrike.h"
 #include "Components/DecalComponent.h"
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -32,6 +33,18 @@ void ATelegraphActor::Configure(float InRadius, float InDuration, TSubclassOf<AS
     Radius = InRadius;
     Duration = InDuration;
     StrikeClass = InStrikeClass;
+    InnerRadius = 0.f;
+    bRadiatingPulse = false;
+}
+
+void ATelegraphActor::ConfigureRadiatingPulse(const FRadiatingAttackSettings& InSettings, float InInnerRadius, float InOuterRadius)
+{
+    Configure(InOuterRadius, InSettings.TelegraphDuration, ARingStrike::StaticClass());
+    PulseSettings = InSettings;
+    InnerRadius = InInnerRadius;
+    TelegraphMaterial = InSettings.TelegraphMaterial;
+    Color = InSettings.WarningColor;
+    bRadiatingPulse = true;
 }
 
 void ATelegraphActor::OnConstruction(const FTransform& Transform)
@@ -59,6 +72,13 @@ void ATelegraphActor::BeginPlay()
     if (ensureMsgf(DecalMID, TEXT("%s: failed to create the telegraph MID despite a valid material"), *GetName()))
     {
         DecalMID->SetScalarParameterValue(TEXT("Progress"), 0.f);
+        if (bRadiatingPulse)
+        {
+            DecalMID->SetScalarParameterValue(TEXT("InnerRadius"), InnerRadius);
+            DecalMID->SetScalarParameterValue(TEXT("OuterRadius"), Radius);
+            DecalMID->SetScalarParameterValue(TEXT("InnerRadiusRatio"), Radius > 0.f ? InnerRadius / Radius : 0.f);
+            DecalMID->SetVectorParameterValue(TEXT("WarningColor"), Color);
+        }
     }
 }
 
@@ -83,12 +103,25 @@ void ATelegraphActor::Tick(float DeltaSeconds)
     {
         bStruck = true;
 
-        // Missing StrikeClass = a telegraph that warns then does nothing; treat as misconfig (relax to a plain `if` for feints).
         if (ensureMsgf(StrikeClass, TEXT("%s: telegraph completed with no StrikeClass set"), *GetName()))
         {
             // Location only: this actor's rotation is the decal's -90 pitch (projection plumbing),
             // and passing it through would spawn orientation-sensitive strikes lying sideways.
-            AStrikeActor::SpawnConfigured(GetWorld(), StrikeClass, FTransform(GetActorLocation()), Radius, GetOwner(), GetInstigator());
+            if (bRadiatingPulse)
+            {
+                const FTransform Transform(GetActorLocation());
+                ARingStrike* Strike = GetWorld()->SpawnActorDeferred<ARingStrike>(
+                    ARingStrike::StaticClass(), Transform, GetOwner(), GetInstigator(), ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+                if (ensureMsgf(Strike, TEXT("%s: failed to spawn ring strike"), *GetName()))
+                {
+                    Strike->Configure(PulseSettings, InnerRadius, Radius);
+                    Strike->FinishSpawning(Transform);
+                }
+            }
+            else
+            {
+                AStrikeActor::SpawnConfigured(GetWorld(), StrikeClass, FTransform(GetActorLocation()), Radius, GetOwner(), GetInstigator());
+            }
         }
 
         Destroy();

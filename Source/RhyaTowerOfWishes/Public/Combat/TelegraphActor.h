@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Combat/RadiatingAttackSettings.h"
 #include "TelegraphActor.generated.h"
 
 class UDecalComponent;
@@ -10,9 +11,8 @@ class UMaterialInstanceDynamic;
 class AStrikeActor;
 
 /**
- * Ground telegraph: a deferred decal projected onto the terrain whose material fills from the
- * center out to Radius over Duration, then spawns StrikeClass at this actor's transform and
- * destroys itself.
+ * Ground warning decal for a disk or ring. Advances the material's Progress from 0 to 1
+ * over Duration, then spawns the strike at this actor's location and destroys itself.
  */
 UCLASS()
 class RHYATOWEROFWISHES_API ATelegraphActor : public AActor
@@ -26,6 +26,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Telegraph")
     void Configure(float InRadius, float InDuration, TSubclassOf<AStrikeActor> InStrikeClass);
 
+    // Explicit configuration for a ring pulse, before FinishSpawning. Existing Configure callers stay circular.
+    void ConfigureRadiatingPulse(const FRadiatingAttackSettings& InSettings, float InInnerRadius, float InOuterRadius);
+
 protected:
     virtual void OnConstruction(const FTransform& Transform) override;
     virtual void BeginPlay() override;
@@ -37,14 +40,17 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Telegraph", meta = (ClampMin = "0.0"))
     float Radius = 120.f;
 
-    // Wind-up length in seconds. The fill sweeps 0 -> Radius over this; this is the reaction window.
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Telegraph")
+    float InnerRadius = 0.f;
+
+    // Warning duration in seconds before the strike spawns.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Telegraph", meta = (ClampMin = "0.01"))
     float Duration = 1.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Telegraph")
     FLinearColor Color = FLinearColor(1.f, 0.15f, 0.05f, 1.f);
 
-    // Spawned at this actor's transform when the wind-up completes (e.g. BP_AoE). The decoupled strike.
+    // Spawned at this actor's location when the warning completes.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Telegraph")
     TSubclassOf<AStrikeActor> StrikeClass;
 
@@ -57,6 +63,11 @@ protected:
 private:
     UPROPERTY(Transient)
     UMaterialInstanceDynamic* DecalMID = nullptr;
+
+    UPROPERTY(Transient)
+    FRadiatingAttackSettings PulseSettings;
+
+    bool bRadiatingPulse = false;
 
 
     bool bStruck = false;
