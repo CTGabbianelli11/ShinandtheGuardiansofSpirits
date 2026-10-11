@@ -53,7 +53,7 @@ void ATotem::GetHit_Implementation(const FVector& impactPoint, const FVector& im
     OnTotemHit(impactPoint, impactDirection);
 }
 
-void ATotem::CharacterDied()
+void ATotem::CharacterDied_Implementation()
 {
     if (!ensureMsgf(!bDied, TEXT("%s: CharacterDied called twice - the AttributeComponent death edge fires exactly once"), *GetName()))
     {

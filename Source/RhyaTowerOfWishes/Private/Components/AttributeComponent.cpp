@@ -1,4 +1,5 @@
 #include "Components/AttributeComponent.h"
+#include "Kismet/GameplayStatics.h"
 #include "Interfaces/DeathInterface.h"
 
 UAttributeComponent::UAttributeComponent()
@@ -31,7 +32,7 @@ void UAttributeComponent::ReceiveDamage(float _damage)
 	// (re-ragdoll, repeat death events) on every subsequent damage event.
 	if (bWasAlive && !IsAlive() && Cast<IDeathInterface>(GetOwner()))
 	{
-		Cast<IDeathInterface>(GetOwner())->CharacterDied();
+		IDeathInterface::Execute_CharacterDied(Cast<UObject>(GetOwner()));
 	}
 }
 

@@ -29,7 +29,7 @@ public:
 
     virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
     virtual void GetHit_Implementation(const FVector& impactPoint, const FVector& impactDirection, const float& damage) override;
-    virtual void CharacterDied() override;
+    virtual void CharacterDied_Implementation() override;
 
 protected:
     // Hit feedback (flash/sound) - fires on every contact, dead or alive.

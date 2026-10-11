@@ -27,7 +27,7 @@ public:
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 	virtual void GetHit_Implementation(const FVector& impactPoint, const FVector& impactDirection, const float& damage) override;
-	virtual void CharacterDied() override;
+	virtual void CharacterDied_Implementation() override;
 
 	void DirectionalHitReact(const FVector& impactPoint, const FVector impactDirection);
 
@@ -37,7 +37,7 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void EnableRagdoll();
 
-	UFUNCTION(BlueprintImplementableEvent, Category = "Combat")
+	UFUNCTION(BlueprintCallable,BlueprintImplementableEvent, Category = "Combat")
 	void OnCharacterDied();
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "Combat")

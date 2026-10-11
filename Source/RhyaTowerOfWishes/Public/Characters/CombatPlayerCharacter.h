@@ -49,7 +49,7 @@ public:
     // Interface overrides
     virtual void GetHit_Implementation(const FVector& impactPoint, const FVector& impactDirection, const float& damage) override;
 
-    virtual void CharacterDied() override;
+    virtual void CharacterDied_Implementation() override;
 
     // BlueprintAssignable delegates
     UPROPERTY(BlueprintAssignable, Category = "Events")

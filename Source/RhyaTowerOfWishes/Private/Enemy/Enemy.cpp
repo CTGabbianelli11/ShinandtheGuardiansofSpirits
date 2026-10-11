@@ -94,7 +94,7 @@ void AEnemy::GetHit_Implementation(const FVector& impactPoint, const FVector& im
 	}
 }
 
-void AEnemy::CharacterDied()
+void AEnemy::CharacterDied_Implementation()
 {
 	if (GetController())
 		GetController()->UnPossess();

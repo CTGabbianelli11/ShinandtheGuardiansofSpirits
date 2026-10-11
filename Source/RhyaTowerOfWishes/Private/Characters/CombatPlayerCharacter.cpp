@@ -647,7 +647,7 @@ void ACombatPlayerCharacter::OnHitReactMontageEnded(UAnimMontage* Montage, bool 
     }
 }
 
-void ACombatPlayerCharacter::CharacterDied()
+void ACombatPlayerCharacter::CharacterDied_Implementation()
 {
     GEngine->AddOnScreenDebugMessage(0, 1, FColor::Red, TEXT("Dead"));
     GetMesh()->SetAnimInstanceClass(nullptr);
