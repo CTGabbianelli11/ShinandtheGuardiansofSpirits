@@ -4,6 +4,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
+#include "Interfaces/HitInterface.h"
 #include "Kismet/GameplayStatics.h"
 
 AProjectileStrike::AProjectileStrike()
@@ -16,7 +17,7 @@ AProjectileStrike::AProjectileStrike()
     Sphere->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
     Sphere->SetCollisionObjectType(ECC_WorldDynamic);
     Sphere->SetCollisionResponseToAllChannels(ECR_Ignore);
-    // Overlap pawns (damage), block world statics (stop and destroy on level geometry), overlap
+    // Overlap pawns and damage blocking world-static bodies (including enemy meshes); overlap
     // swinging weapon hitboxes (deflection hook).
     Sphere->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
     Sphere->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Block);
@@ -40,6 +41,7 @@ void AProjectileStrike::BeginPlay()
     Super::BeginPlay();
 
     Sphere->OnComponentBeginOverlap.AddDynamic(this, &AProjectileStrike::OnSphereBeginOverlap);
+    Sphere->OnComponentHit.AddDynamic(this, &AProjectileStrike::OnSphereHit);
 
     // Re-assert after serialized data lands: BPs saved before the WeaponHitbox channel existed
     // carry a response array without it, which silently overrides the constructor's Overlap.
@@ -74,19 +76,19 @@ void AProjectileStrike::Tick(float DeltaSeconds)
     AddActorWorldOffset(GetActorForwardVector() * Step, true, &Hit);
     Traveled += Step;
 
-    // The overlap handler may have spent us mid-sweep; don't also destroy on the wall behind the pawn.
+    // Either collision callback may have spent us during the sweep.
     if (bSpent)
     {
         return;
     }
     if (Hit.bBlockingHit)
     {
-        OnFlightEnded();
+        HandleImpact(Hit.GetActor(), Hit);
         return;
     }
     if (Traveled >= MaxRange)
     {
-        OnFlightEnded();
+        EndFlight();
     }
 }
 
@@ -103,8 +105,35 @@ void AProjectileStrike::OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComp
         OnWeaponHit(OtherActor, SweepResult);
         return;
     }
+    HandleImpact(OtherActor, SweepResult);
+}
+
+void AProjectileStrike::OnSphereHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
+{
+    HandleImpact(OtherActor, Hit);
+}
+
+void AProjectileStrike::HandleImpact(AActor* OtherActor, const FHitResult& Hit)
+{
+    if (bSpent)
+    {
+        return;
+    }
+    if (!IsValid(OtherActor))
+    {
+        // A blocking obstruction still ends the flight without a valid damage recipient.
+        if (Hit.bBlockingHit)
+        {
+            EndFlight();
+        }
+        return;
+    }
+    if (OtherActor == GetOwner() || OtherActor == GetInstigator())
+    {
+        return;
+    }
     bSpent = true;
-    OnPawnHit(OtherActor, SweepResult);
+    OnImpact(OtherActor, Hit);
 }
 
 void AProjectileStrike::OnWeaponHit(AActor* WeaponActor, const FHitResult& SweepResult)
@@ -117,12 +146,32 @@ void AProjectileStrike::RestartFlight()
     SetLifeSpan(MaxRange / Speed + 1.f);
 }
 
-void AProjectileStrike::OnPawnHit(AActor* OtherActor, const FHitResult& SweepResult)
+void AProjectileStrike::OnImpact(AActor* OtherActor, const FHitResult& SweepResult)
 {
     AController* InstigatorController = GetInstigator() ? GetInstigator()->GetController() : nullptr;
     // Point damage carries the flight direction, so block verdicts face the projectile, not its firer.
     UGameplayStatics::ApplyPointDamage(OtherActor, Damage, GetActorForwardVector(), SweepResult, InstigatorController, this, nullptr);
+    // Resolve damage before the reaction, including fully blocked hits.
+    if (IsValid(OtherActor) && !OtherActor->IsActorBeingDestroyed() && OtherActor->Implements<UHitInterface>())
+    {
+        const bool bHasSweepHit = SweepResult.GetComponent() != nullptr;
+        const FVector ImpactPoint = bHasSweepHit ? FVector(SweepResult.ImpactPoint) : OtherActor->GetActorLocation();
+        const FVector ImpactNormal = bHasSweepHit && !SweepResult.ImpactNormal.IsNearlyZero()
+            ? FVector(SweepResult.ImpactNormal) : -GetActorForwardVector();
+        IHitInterface::Execute_GetHit(OtherActor, ImpactPoint, ImpactNormal, Damage);
+    }
     Destroy();
+}
+
+void AProjectileStrike::EndFlight()
+{
+    if (bSpent)
+    {
+        return;
+    }
+
+    bSpent = true;
+    OnFlightEnded();
 }
 
 void AProjectileStrike::OnFlightEnded()

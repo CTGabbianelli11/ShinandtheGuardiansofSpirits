@@ -9,8 +9,8 @@ class UStaticMeshComponent;
 
 /**
  * A straight-line projectile: on spawn it faces its travel direction and each tick sweeps
- * forward at Speed, damaging the first pawn it passes through once and destroying itself on that
- * hit, on a blocking world hit, or once it has flown MaxRange without hitting anything.
+ * forward at Speed. The first pawn overlap or blocking impact applies damage and GetHit once,
+ * then destroys the projectile. A miss expires after MaxRange.
  *
  * The sphere collision is the root so the swept move sweeps it (children teleport); the mesh is a
  * cosmetic child sized independently, so the visible shot can read larger than the fair hitbox.
@@ -26,19 +26,20 @@ public:
     AProjectileStrike();
     virtual void Tick(float DeltaSeconds) override;
 
-    // Spawns Class at Transform (whose ROTATION is the travel direction) with the flight
-    // parameters already configured. Encapsulates the SpawnActorDeferred/FinishSpawning ordering
-    // the plain properties depend on - returns nullptr (after an ensure) on bad input or a failed spawn.
+    // Spawns with flight parameters configured before BeginPlay; rotation sets travel direction.
     static AProjectileStrike* SpawnConfigured(UWorld* World, TSubclassOf<AProjectileStrike> Class, const FTransform& Transform, float InSpeed, float InMaxRange, AActor* Owner, APawn* Instigator);
 
 protected:
     virtual void OnConstruction(const FTransform& Transform) override;
     virtual void BeginPlay() override;
 
-    // The pawn the sweep caught. Base: point damage along the flight direction, then vanish.
-    virtual void OnPawnHit(AActor* OtherActor, const FHitResult& SweepResult);
+    // Target caught by an overlap or blocking impact.
+    virtual void OnImpact(AActor* OtherActor, const FHitResult& SweepResult);
 
-    // Flight over without catching a pawn — blocking world hit or MaxRange spent. Base: vanish.
+    // Marks the projectile spent before invoking its flight-ending behaviour; safe to call twice.
+    void EndFlight();
+
+    // Called by EndFlight after the projectile is spent.
     virtual void OnFlightEnded();
 
     // A swinging weapon hitbox (ECC_WeaponHitbox) touched the projectile, before any pawn did.
@@ -71,11 +72,16 @@ protected:
     float Damage = 20.f;
 
 private:
+    void HandleImpact(AActor* OtherActor, const FHitResult& Hit);
+
     UFUNCTION()
     void OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
 
+    UFUNCTION()
+    void OnSphereHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
+
     float Traveled = 0.f;
 
-    // Set the instant the projectile hits a pawn, so a single sweep can't also destroy on a wall.
+    // Shared by overlap callbacks, blocking-hit callbacks, and the sweep result.
     bool bSpent = false;
 };

@@ -22,7 +22,7 @@ public:
     static AHomingStrike* SpawnConfigured(UWorld* World, TSubclassOf<AHomingStrike> Class, const FTransform& Transform, float InSpeed, float InLifeSeconds, float InTurnRate, AActor* Target, AActor* Owner, APawn* Instigator);
 
 protected:
-    virtual void OnPawnHit(AActor* OtherActor, const FHitResult& SweepResult) override;
+    virtual void OnImpact(AActor* OtherActor, const FHitResult& SweepResult) override;
     virtual void OnFlightEnded() override;
 
     // Deflection: the shot turns on its firer - retargets, re-attributes damage to the deflector,

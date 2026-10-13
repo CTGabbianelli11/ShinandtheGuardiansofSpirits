@@ -5,6 +5,7 @@
 #include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
+#include "Interfaces/HitInterface.h"
 #include "Kismet/GameplayStatics.h"
 #include "NiagaraComponent.h"
 
@@ -91,5 +92,10 @@ void ARingStrike::ApplyRingDamage()
         Event.Params = FRadialDamageParams(Settings.Damage, Radius, Radius, 1.f);
         Event.ComponentHits = { FHitResult(Pawn, Component, HitPoint, (Center - HitPoint).GetSafeNormal()) };
         Pawn->TakeDamage(Settings.Damage, Event, GetInstigatorController(), this);
+        // Resolve damage before the reaction, including fully blocked hits.
+        if (IsValid(Pawn) && !Pawn->IsActorBeingDestroyed() && Pawn->Implements<UHitInterface>())
+        {
+            IHitInterface::Execute_GetHit(Pawn, HitPoint, (Center - HitPoint).GetSafeNormal(), Settings.Damage);
+        }
     }
 }

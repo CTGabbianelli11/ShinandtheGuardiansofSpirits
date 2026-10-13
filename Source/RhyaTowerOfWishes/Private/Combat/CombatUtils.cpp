@@ -5,6 +5,7 @@
 #include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
+#include "Interfaces/HitInterface.h"
 #include "DrawDebugHelpers.h"
 #include "HAL/IConsoleManager.h"
 
@@ -70,6 +71,14 @@ namespace Rhya
                 const FVector HitNormal = (RadialEvent.Origin - HitLocation).GetSafeNormal();
                 RadialEvent.ComponentHits = { FHitResult(HitActor, HitComponent, HitLocation, HitNormal) };
                 const float AppliedDamage = HitActor->TakeDamage(DamageAmount, RadialEvent, InstigatorController, &Dealer);
+                if (!IsValid(HitActor) || HitActor->IsActorBeingDestroyed())
+                {
+                    continue;
+                }
+                if (HitActor->Implements<UHitInterface>())
+                {
+                    IHitInterface::Execute_GetHit(HitActor, HitLocation, HitNormal, DamageAmount);
+                }
                 if (DebugLevel > 0)
                 {
                     const FVector Offset = HitLocation - RadialEvent.Origin;

@@ -36,7 +36,7 @@ void AHomingStrike::Tick(float DeltaSeconds)
     Super::Tick(DeltaSeconds);
 }
 
-void AHomingStrike::OnPawnHit(AActor* OtherActor, const FHitResult& SweepResult)
+void AHomingStrike::OnImpact(AActor* OtherActor, const FHitResult& SweepResult)
 {
     Detonate();
 }

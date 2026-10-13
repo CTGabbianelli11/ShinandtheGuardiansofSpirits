@@ -4,6 +4,7 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
+#include "Interfaces/HitInterface.h"
 #include "Kismet/GameplayStatics.h"
 #include "NiagaraComponent.h"
 #include "NiagaraFunctionLibrary.h"
@@ -123,6 +124,14 @@ void AWallStrike::OnBoxBeginOverlap(UPrimitiveComponent* OverlappedComponent, AA
     AController* InstigatorController = GetInstigator() ? GetInstigator()->GetController() : nullptr;
     // Point damage carries the slide direction, so block verdicts face the wall, not its owner.
     UGameplayStatics::ApplyPointDamage(OtherActor, Damage, GetActorForwardVector(), SweepResult, InstigatorController, this, nullptr);
+    // Resolve damage before the reaction, including fully blocked hits.
+    if (IsValid(OtherActor) && !OtherActor->IsActorBeingDestroyed() && OtherActor->Implements<UHitInterface>())
+    {
+        const FVector ImpactPoint = bFromSweep ? FVector(SweepResult.ImpactPoint) : OtherActor->GetActorLocation();
+        const FVector ImpactNormal = bFromSweep && !SweepResult.ImpactNormal.IsNearlyZero()
+            ? FVector(SweepResult.ImpactNormal) : -GetActorForwardVector();
+        IHitInterface::Execute_GetHit(OtherActor, ImpactPoint, ImpactNormal, Damage);
+    }
 }
 
 AWallStrike* AWallStrike::SpawnConfigured(UWorld* World, TSubclassOf<AWallStrike> Class, const FTransform& Transform, float InWindupTime, float InSlideSpeed, float InTravelDistance, AActor* Owner, APawn* Instigator)

@@ -586,6 +586,14 @@ void ACombatPlayerCharacter::GetHit_Implementation(const FVector& impactPoint, c
 
     if (CVarCombatDebug.GetValueOnGameThread() != 0)
     {
+        const FString Reaction = FString::Printf(TEXT("GetHit: %s -> %s"), *GetName(),
+            bBlockedThisHit ? TEXT("CharacterBlockedHit") : TEXT("CharacterHit"));
+        UE_LOG(LogTemp, Display, TEXT("%s"), *Reaction);
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(-1, 3.f,
+                bBlockedThisHit ? FColor::Green : FColor::Red, Reaction);
+        }
         // Dealer-claimed impact point, colored by verdict.
         DrawDebugSphere(GetWorld(), impactPoint, 8.f, 8,
             bBlockedThisHit ? FColor::Green : FColor::Red, false, 1.8f, SDPG_Foreground);
