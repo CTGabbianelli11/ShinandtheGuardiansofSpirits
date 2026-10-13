@@ -526,12 +526,18 @@ float ACombatPlayerCharacter::TakeDamage(float DamageAmount, FDamageEvent const&
                 DamageAmount, VerdictSource), FColor::Red);
         }
     }
-    else if (bCombatDebug)
+    else
     {
-        const FString From = DamageCauser
-            ? FString::Printf(TEXT("from %s"), *DamageCauser->GetName())
-            : FString(TEXT("[no causer]"));
-        DrawCombatText(this, FString::Printf(TEXT("HIT %.1f  %s"), DamageAmount, *From), FColor::Red);
+        // A second hit in the same frame must not reuse an earlier successful block.
+        bBlockedLastHit = false;
+        LastBlockVerdictFrame = GFrameCounter;
+        if (bCombatDebug)
+        {
+            const FString From = DamageCauser
+                ? FString::Printf(TEXT("from %s"), *DamageCauser->GetName())
+                : FString(TEXT("[no causer]"));
+            DrawCombatText(this, FString::Printf(TEXT("HIT %.1f  %s"), DamageAmount, *From), FColor::Red);
+        }
     }
 
     return Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
