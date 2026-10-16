@@ -29,7 +29,9 @@ void UTotemAttackComponent::DoTotemAttack()
 
     for (int32 Index = 0; Index < TotemPoints.Num(); ++Index)
     {
-        const FVector WorldPoint = GetComponentTransform().TransformPosition(TotemPoints[Index]);
+        const FVector WorldPoint = bTotemPointsInWorldSpace
+            ? TotemPoints[Index]
+            : GetComponentTransform().TransformPosition(TotemPoints[Index]);
 
         FVector FloorPoint;
         if (!ensureMsgf(Rhya::SnapToFloor(*World, WorldPoint, GetOwner(), FloorPoint),
@@ -104,7 +106,7 @@ void UTotemAttackComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
 void UTotemAttackComponent::HandleTotemDestroyed(AActor* DestroyedActor)
 {
-    // Runs even after the phase resolves (stragglers killed post-expiry) so the roster stays truthful.
+    // Remove destroyed objectives before checking whether the phase has been cleared.
     AliveTotems.Remove(Cast<ATotem>(DestroyedActor));
 
     if (!bPhaseActive || AliveTotems.Num() > 0)
@@ -121,8 +123,9 @@ void UTotemAttackComponent::HandleTotemDestroyed(AActor* DestroyedActor)
 
 void UTotemAttackComponent::HandleDeadlineExpired()
 {
-    bPhaseActive = false;
-    OnPhaseExpired.Broadcast(AliveTotems.Num());
+    const int32 SurvivingTotems = AliveTotems.Num();
+    CancelTotemPhase();
+    OnPhaseExpired.Broadcast(SurvivingTotems);
 }
 
 void UTotemAttackComponent::RegisterTotem(ATotem* Totem)

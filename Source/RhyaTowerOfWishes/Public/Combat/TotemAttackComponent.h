@@ -23,9 +23,13 @@ class RHYATOWEROFWISHES_API UTotemAttackComponent : public USceneComponent
     GENERATED_BODY()
 
 public:
-    // Totem spawn locations in component-local space, one totem per point.
+    // Totem spawn locations, one totem per point. Floor-snapped in either coordinate space.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Totem Attack")
     TArray<FVector> TotemPoints;
+
+    /** Use absolute world positions; otherwise points are relative to this component. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Totem Attack")
+    bool bTotemPointsInWorldSpace = false;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Totem Attack")
     TSubclassOf<ATotem> TotemClass;
@@ -40,7 +44,7 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "Totem Attack")
     FOnTotemPhaseCleared OnPhaseCleared;
 
-    // Surviving totems are left standing; listeners decide their fate.
+    // Fired after remaining totems are destroyed, with the survivor count before cleanup.
     UPROPERTY(BlueprintAssignable, Category = "Totem Attack")
     FOnTotemPhaseExpired OnPhaseExpired;
 
@@ -69,8 +73,6 @@ private:
     void RegisterTotem(ATotem* Totem);
     void DrawDebugState();
 
-    // Roster of the phase's live totems: joined only by RegisterTotem (add paired with the
-    // OnDestroyed bind), left only by HandleTotemDestroyed - so it can't drift from the world.
     UPROPERTY(Transient)
     TArray<ATotem*> AliveTotems;
 
