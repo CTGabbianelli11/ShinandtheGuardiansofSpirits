@@ -1,8 +1,10 @@
 
-// CPPCharacter.cpp
 #include "Characters/CombatPlayerCharacter.h"
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimMontage.h"
+#include "Animation/ActiveMontageInstanceScope.h"
+#include "Animation/AnimNotifyLibrary.h"
+#include "Animation/AnimNotifies/AnimNotifyState.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -39,6 +41,49 @@ static TAutoConsoleVariable<int32> CVarCombatDebug(
     TEXT("Rhya.Debug.Combat"), 0,
     TEXT("Combat debug overlay: 1 = floating hit/block verdict text, damage numbers, block cone."),
     ECVF_Cheat);
+
+DEFINE_LOG_CATEGORY_STATIC(LogPlayerActions, Log, All);
+
+static TAutoConsoleVariable<int32> CVarActionDebug(
+    TEXT("Rhya.Debug.Actions"), UE_BUILD_SHIPPING ? 0 : 1,
+    TEXT("Player action debugging: 0 = off, 1 = persistent state display and transition logs, "
+         "2 = also log notify Begin/End, interruptions, and ignored callbacks."),
+    ECVF_Cheat);
+
+static FString ActionStateName(EactionState State)
+{
+    FString Name = StaticEnum<EactionState>()->GetNameStringByValue(static_cast<int64>(State));
+    Name.RemoveFromStart(TEXT("EAS_"));
+    return Name;
+}
+
+static FString NotifyInterruptName(EGameplayNotifyInterruptReason Reason)
+{
+    return StaticEnum<EGameplayNotifyInterruptReason>()->GetNameStringByValue(static_cast<int64>(Reason));
+}
+
+static uint64 ActionDebugScreenKey(const ACombatPlayerCharacter* Player, bool bEvent)
+{
+    // Separate keys per actor and row: refresh in place, including multiple PIE players.
+    return 0x5248590000000000ULL | (static_cast<uint64>(Player->GetUniqueID()) << 1) | (bEvent ? 1ULL : 0ULL);
+}
+
+static void LogActionDebug(const ACombatPlayerCharacter* Player, const FString& Message, int32 RequiredLevel = 1)
+{
+    if (CVarActionDebug.GetValueOnGameThread() < RequiredLevel) return;
+    UE_LOG(LogPlayerActions, Log, TEXT("[%s][%s][%.3fs] %s"),
+        *GetNameSafe(Player->GetWorld()), *Player->GetName(),
+        Player->GetWorld() ? Player->GetWorld()->GetTimeSeconds() : 0.0, *Message);
+}
+
+static void ShowActionDebugEvent(const ACombatPlayerCharacter* Player, const FString& Message, FColor Color)
+{
+    LogActionDebug(Player, Message);
+    if (CVarActionDebug.GetValueOnGameThread() == 0 || !GEngine
+        || !Player->IsPlayerControlled() || !Player->IsLocallyControlled()) return;
+    GEngine->AddOnScreenDebugMessage(ActionDebugScreenKey(Player, true), 3.f, Color,
+        FString::Printf(TEXT("[%s] %s"), *Player->GetName(), *Message));
+}
 
 static void DrawCombatText(const AActor* Anchor, const FString& Text, const FColor& Color)
 {
@@ -98,9 +143,7 @@ void ACombatPlayerCharacter::Move(const FInputActionValue& Value)
     const FRotator controlRotation = GetControlRotation();
     YawRotation = FRotator(0.f, controlRotation.Yaw, 0.f);
 
-    FString EnumAsString = UEnum::GetValueAsString(actionState);
-
-    if (actionState != EactionState::EAS_Unoccupied)
+    if (!IsActionInputAllowed() || actionState != EactionState::EAS_Unoccupied)
         return;
     
 
@@ -125,6 +168,7 @@ void ACombatPlayerCharacter::Look(const FInputActionValue& Value)
 
 void ACombatPlayerCharacter::Interact(const FInputActionValue& /*Value*/)
 {
+    if (!IsActionInputAllowed()) return;
     if (AWeapon* overlappingWeapon = Cast<AWeapon>(overlappingItem))
     {
         //EquipExistingWeapon(overlappingWeapon);
@@ -164,13 +208,266 @@ AWeapon* ACombatPlayerCharacter::SpawnAndEquipWeapon(TSubclassOf<AWeapon> Weapon
 
 void ACombatPlayerCharacter::SetAttackNumber(int AttackNumber)
 {
+    // A late combo notify may clear its window, but cannot arm another combo in stagger.
+    if (AttackNumber != 0 && !IsActionInputAllowed()) return;
     comboIndex = AttackNumber;
     OnComboIndexChanged.Broadcast(comboIndex);
 }
 
 void ACombatPlayerCharacter::SetActionState(EactionState ActionState)
 {
-    actionState = ActionState;
+    // EnterStagger and FinishStagger own stagger transitions; animation markers cannot override them.
+    if (!IsActionInputAllowed() || ActionState == EactionState::EAS_Staggered)
+    {
+        LogActionDebug(this, FString::Printf(TEXT("Ignored SetActionState(%s); current=%s, alive=%d"),
+            *ActionStateName(ActionState), *ActionStateName(actionState), IsCombatAlive()), 2);
+        return;
+    }
+    // The existing dodge montage has both this marker and EndDodgeRoll. Recover once.
+    if (actionState == EactionState::EAS_Dodging && ActionState == EactionState::EAS_Unoccupied)
+    {
+        EndDodge();
+        return;
+    }
+    if (ActionState != EactionState::EAS_Dodging) bDodgeInvulnerable = false;
+    ChangeActionState(ActionState, TEXT("SetActionState / animation callback"));
+}
+
+void ACombatPlayerCharacter::ChangeActionState(EactionState NewState, const TCHAR* Reason)
+{
+    const EactionState PreviousState = actionState;
+    actionState = NewState;
+    if (PreviousState == NewState) return;
+    ShowActionDebugEvent(this, FString::Printf(TEXT("%s -> %s (%s)"),
+        *ActionStateName(PreviousState), *ActionStateName(NewState), Reason),
+        NewState == EactionState::EAS_Staggered ? FColor::Red : FColor::Cyan);
+}
+
+bool ACombatPlayerCharacter::IsCombatAlive() const
+{
+    return !bCombatDead && !IsActorBeingDestroyed() && attributeComponent && attributeComponent->IsAlive();
+}
+
+bool ACombatPlayerCharacter::IsActionInputAllowed() const
+{
+    return IsCombatAlive() && actionState != EactionState::EAS_Staggered;
+}
+
+bool ACombatPlayerCharacter::CanStartAction(EactionState RequestedAction) const
+{
+    if (!IsActionInputAllowed()) return false;
+    switch (RequestedAction)
+    {
+    case EactionState::EAS_Attacking:
+        return (actionState == EactionState::EAS_Unoccupied || actionState == EactionState::EAS_Comboing)
+            && state != ECharacterState::ECS_Unequipped && IsValid(equippedWeapon);
+    case EactionState::EAS_Dodging:
+        return actionState != EactionState::EAS_Dodging;
+    case EactionState::EAS_Blocking:
+        return actionState != EactionState::EAS_Dodging && actionState != EactionState::EAS_Blocking;
+    case EactionState::EAS_Healing:
+        // HealTick spends magic and stops healing if it cannot afford a pulse.
+        return actionState == EactionState::EAS_Unoccupied && !attributeComponent->IsHealthFull();
+    case EactionState::EAS_Unoccupied:
+    case EactionState::EAS_Comboing:
+    case EactionState::EAS_Staggered:
+    default:
+        // Unoccupied/Comboing are recovery/animation phases, not input actions.
+        return false;
+    }
+}
+
+bool ACombatPlayerCharacter::TryStartAction(EactionState RequestedAction)
+{
+    if (!CanStartAction(RequestedAction)) return false;
+    const int RequestedComboIndex = comboIndex;
+    ChangeActionState(RequestedAction, TEXT("TryStartAction"));
+    CancelCurrentAction(EGameplayNotifyInterruptReason::ActionCancelled);
+    // Cancellation can dispatch callbacks that change the state or destroy the character.
+    if (!IsActionInputAllowed() || actionState != RequestedAction) return false;
+    // Outgoing notify ends may reset comboIndex while the next combo attack starts.
+    if (RequestedAction == EactionState::EAS_Attacking) SetAttackNumber(RequestedComboIndex);
+    return true;
+}
+
+void ACombatPlayerCharacter::Jump()
+{
+    if (IsActionInputAllowed()) Super::Jump();
+}
+
+void ACombatPlayerCharacter::SetDodgeInvulnerable(bool bEnabled)
+{
+    bDodgeInvulnerable = bEnabled && IsActionInputAllowed() && actionState == EactionState::EAS_Dodging;
+}
+
+void ACombatPlayerCharacter::RegisterAnimNotifyState(const UAnimNotifyState* NotifyState,
+    const FAnimNotifyEventReference& EventReference)
+{
+    if (!ensureMsgf(IsValid(NotifyState), TEXT("RegisterAnimNotifyState requires the ASN's Self"))) return;
+    const auto* MontageContext = EventReference.GetContextData<UE::Anim::FAnimNotifyMontageInstanceContext>();
+    const int32 MontageInstanceID = MontageContext ? MontageContext->MontageInstanceID : INDEX_NONE;
+    ActiveGameplayNotifies.RemoveAll([](const FActiveGameplayNotify& Entry) { return !Entry.NotifyState.IsValid(); });
+    if (ActiveGameplayNotifies.ContainsByPredicate([&](const FActiveGameplayNotify& Entry)
+        { return Entry.NotifyState == NotifyState && Entry.MontageInstanceID == MontageInstanceID; }))
+    {
+        // The same window is already registered; do not overwrite its interruption reason.
+        LogActionDebug(this, FString::Printf(TEXT("Notify Begin duplicate: %s (montage %d); original reason retained"),
+            *GetNameSafe(NotifyState->GetClass()), MontageInstanceID), 2);
+        return;
+    }
+    ActiveGameplayNotifies.Add({ NotifyState, MontageInstanceID,
+        IsCombatAlive() ? EGameplayNotifyInterruptReason::None : EGameplayNotifyInterruptReason::Death });
+    LogActionDebug(this, FString::Printf(TEXT("Notify Begin: %s (montage %d), state=%s, active=%d"),
+        *GetNameSafe(NotifyState->GetClass()), MontageInstanceID, *ActionStateName(actionState), ActiveGameplayNotifies.Num()), 2);
+}
+
+EGameplayNotifyInterruptReason ACombatPlayerCharacter::ConsumeAnimNotifyStateInterruptReason(const UAnimNotifyState* NotifyState,
+    const FAnimNotifyEventReference& EventReference)
+{
+    const auto MissingReason = IsCombatAlive()
+        ? EGameplayNotifyInterruptReason::ActionCancelled : EGameplayNotifyInterruptReason::Death;
+    if (!IsValid(NotifyState)) return MissingReason;
+    const auto* MontageContext = EventReference.GetContextData<UE::Anim::FAnimNotifyMontageInstanceContext>();
+    const int32 MontageInstanceID = MontageContext ? MontageContext->MontageInstanceID : INDEX_NONE;
+    const int32 Index = ActiveGameplayNotifies.IndexOfByPredicate([&](const FActiveGameplayNotify& Entry)
+        { return Entry.NotifyState == NotifyState && Entry.MontageInstanceID == MontageInstanceID; });
+    if (Index == INDEX_NONE)
+    {
+        LogActionDebug(this, FString::Printf(TEXT("Notify End without registration: %s (montage %d), reason=%s"),
+            *GetNameSafe(NotifyState->GetClass()), MontageInstanceID, *NotifyInterruptName(MissingReason)), 2);
+        return MissingReason;
+    }
+
+    auto InterruptReason = ActiveGameplayNotifies[Index].InterruptReason;
+    ActiveGameplayNotifies.RemoveAtSwap(Index);
+    // Death overrides any earlier interruption reason.
+    if (!IsCombatAlive()) InterruptReason = EGameplayNotifyInterruptReason::Death;
+    // Stops and section jumps outside the action API must also skip normal completion.
+    if (InterruptReason == EGameplayNotifyInterruptReason::None
+        && !UAnimNotifyLibrary::NotifyStateReachedEnd(EventReference))
+        InterruptReason = EGameplayNotifyInterruptReason::ActionCancelled;
+    LogActionDebug(this, FString::Printf(TEXT("Notify End: %s (montage %d), reason=%s, state=%s, remaining=%d"),
+        *GetNameSafe(NotifyState->GetClass()), MontageInstanceID, *NotifyInterruptName(InterruptReason),
+        *ActionStateName(actionState), ActiveGameplayNotifies.Num()), 2);
+    return InterruptReason;
+}
+
+void ACombatPlayerCharacter::InterruptGameplayNotifies(EGameplayNotifyInterruptReason InterruptReason)
+{
+    LogActionDebug(this, FString::Printf(TEXT("Interrupt notify windows: reason=%s, active=%d"),
+        *NotifyInterruptName(InterruptReason), ActiveGameplayNotifies.Num()), 2);
+    switch (InterruptReason)
+    {
+    case EGameplayNotifyInterruptReason::None:
+        return;
+    case EGameplayNotifyInterruptReason::Staggered:
+    case EGameplayNotifyInterruptReason::ActionCancelled:
+        for (FActiveGameplayNotify& Entry : ActiveGameplayNotifies)
+        {
+            // Keep the original cause while an interrupted montage is blending out.
+            if (Entry.InterruptReason == EGameplayNotifyInterruptReason::None)
+                Entry.InterruptReason = InterruptReason;
+        }
+        return;
+    case EGameplayNotifyInterruptReason::Death:
+        // Death supersedes earlier reasons so cleanup cannot restore locomotion on a corpse.
+        for (FActiveGameplayNotify& Entry : ActiveGameplayNotifies) Entry.InterruptReason = InterruptReason;
+        return;
+    default:
+        checkNoEntry();
+        return;
+    }
+}
+
+void ACombatPlayerCharacter::CancelCurrentAction(EGameplayNotifyInterruptReason InterruptReason)
+{
+    // Publish the reason before Stop dispatches any End callbacks. ASNs own their
+    // effects until End, including the brief weapon trade window during blend-out.
+    InterruptGameplayNotifies(InterruptReason);
+    ++DodgeGeneration;
+    bDodgeInvulnerable = false;
+    GetWorldTimerManager().ClearTimer(HealTimerHandle);
+    StopJumping();
+    ConsumeMovementInputVector();
+    GetCharacterMovement()->RotationRate = FRotator(0.f, 400.f, 0.f);
+    if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
+        AnimInstance->Montage_Stop(0.1f);
+}
+
+void ACombatPlayerCharacter::EnterStagger()
+{
+    if (!IsCombatAlive()) return;
+    if (actionState == EactionState::EAS_Staggered && !bRestartStaggerOnHit)
+    {
+        LogActionDebug(this, TEXT("Hit during stagger: keeping original recovery deadline"));
+        return;
+    }
+
+    // Invalidate old recovery before stopping: Stop can synchronously dispatch callbacks.
+    const uint32 Generation = ++StaggerGeneration;
+    if (actionState == EactionState::EAS_Staggered)
+        ShowActionDebugEvent(this, TEXT("Stagger restarted by another hit"), FColor::Red);
+    ChangeActionState(EactionState::EAS_Staggered, TEXT("Hit"));
+    GetWorldTimerManager().ClearTimer(StaggerTimerHandle);
+    CancelCurrentAction(EGameplayNotifyInterruptReason::Staggered);
+    SetAttackNumber(0);
+    // Stop horizontal attack momentum without changing vertical velocity.
+    GetCharacterMovement()->Velocity.X = 0.f;
+    GetCharacterMovement()->Velocity.Y = 0.f;
+    if (!IsCombatAlive() || Generation != StaggerGeneration) return;
+
+    if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
+    {
+        if (HitReactMontage && AnimInstance->Montage_Play(HitReactMontage) > 0.f)
+        {
+            FOnMontageEnded EndDelegate;
+            EndDelegate.BindWeakLambda(this, [this, Generation](UAnimMontage*, bool)
+            {
+                // Unexpected interruption releases this stagger; a restart/death invalidates it.
+                FinishStagger(Generation);
+            });
+            AnimInstance->Montage_SetEndDelegate(EndDelegate, HitReactMontage);
+            LogActionDebug(this, FString::Printf(TEXT("Stagger recovery follows montage %s (generation %u)"),
+                *GetNameSafe(HitReactMontage), Generation));
+            return;
+        }
+    }
+    FTimerDelegate Recovery;
+    Recovery.BindWeakLambda(this, [this, Generation]() { FinishStagger(Generation); });
+    GetWorldTimerManager().SetTimer(StaggerTimerHandle, Recovery,
+        FMath::Max(StaggerFallbackDuration, 0.01f), false);
+    ShowActionDebugEvent(this, FString::Printf(TEXT("Stagger: %.2fs fallback timer; hit-react montage missing or unplayable"),
+        FMath::Max(StaggerFallbackDuration, 0.01f)), FColor::Orange);
+}
+
+void ACombatPlayerCharacter::FinishStagger(uint32 Generation)
+{
+    if (Generation != StaggerGeneration || actionState != EactionState::EAS_Staggered || !IsCombatAlive())
+    {
+        LogActionDebug(this, FString::Printf(TEXT("Ignored stagger recovery: callback=%u, current=%u, state=%s, alive=%d"),
+            Generation, StaggerGeneration, *ActionStateName(actionState), IsCombatAlive()), 2);
+        return;
+    }
+    GetWorldTimerManager().ClearTimer(StaggerTimerHandle);
+    ChangeActionState(EactionState::EAS_Unoccupied, TEXT("Stagger recovery"));
+    ResumeBlockIfHeld();
+}
+
+void ACombatPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+    ++StaggerGeneration;
+    ++DodgeGeneration;
+    bCombatDead = true;
+    InterruptGameplayNotifies(EGameplayNotifyInterruptReason::Death);
+    GetWorldTimerManager().ClearTimer(StaggerTimerHandle);
+    GetWorldTimerManager().ClearTimer(HealTimerHandle);
+    Super::EndPlay(EndPlayReason);
+    ActiveGameplayNotifies.Reset();
+    if (GEngine)
+    {
+        GEngine->RemoveOnScreenDebugMessage(ActionDebugScreenKey(this, false));
+        GEngine->RemoveOnScreenDebugMessage(ActionDebugScreenKey(this, true));
+    }
 }
 
 int ACombatPlayerCharacter::GetAttackNumber()
@@ -181,39 +478,28 @@ int ACombatPlayerCharacter::GetAttackNumber()
 
 void ACombatPlayerCharacter::Attack(const FInputActionValue& /*Value*/)
 {
-    if (CanAttack())
-    {
-        actionState = EactionState::EAS_Attacking;
+    if (!TryStartAction(EactionState::EAS_Attacking)) return;
 
-        GetCharacterMovement()->RotationRate = FRotator(0, 50000, 0);
+    GetCharacterMovement()->RotationRate = FRotator(0, 50000, 0);
 
+    AddMovementInput(
+        FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X),
+        (float)movementVector.Y
+    );
 
+    AddMovementInput(
+        FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y),
+        (float)movementVector.X
+    );
 
-        AddMovementInput(
-            FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X),
-            (float)movementVector.Y
-        );
+    equippedWeapon->ignoreActors.Empty();
 
-        AddMovementInput(
-            FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y),
-            (float)movementVector.X
-        );
-
-        equippedWeapon->ignoreActors.Empty();
-
-        PlayAttackMontage();
-    }
+    PlayAttackMontage();
 }
 
 void ACombatPlayerCharacter::DefensiveAction(const FInputActionValue& Value)
 {
-    if (actionState == EactionState::EAS_Dodging)
-        return;
-    // A dodge cancels a heal channel before rolling.
-    if (actionState == EactionState::EAS_Healing)
-        StopHeal();
-    if (actionState == EactionState::EAS_Comboing || actionState == EactionState::EAS_Attacking)
-        AttackEnd();
+    if (!CanStartAction(EactionState::EAS_Dodging)) return;
 
     // Need a movement direction: StartDodge rotates toward it, so a neutral press has nothing
     // to roll toward. Poll MoveAction directly — Move() suppresses AddMovementInput while
@@ -224,7 +510,9 @@ void ACombatPlayerCharacter::DefensiveAction(const FInputActionValue& Value)
 
 void ACombatPlayerCharacter::StartDodge()
 {
-    SetActionState( EactionState::EAS_Dodging);
+    if (!TryStartAction(EactionState::EAS_Dodging)) return;
+    const uint32 Generation = DodgeGeneration;
+    SetAttackNumber(0);
 
     const FVector DodgeDir = GetMoveInputWorldDirection();
     if (!DodgeDir.IsZero())
@@ -234,19 +522,34 @@ void ACombatPlayerCharacter::StartDodge()
 
     if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
     {
-        AnimInstance->Montage_Play(DodgeMontage);
+        if (DodgeMontage && AnimInstance->Montage_Play(DodgeMontage) > 0.f)
+        {
+            FOnMontageEnded EndDelegate;
+            EndDelegate.BindWeakLambda(this, [this, Generation](UAnimMontage*, bool)
+            {
+                // An early recovery marker can allow another dodge before this montage ends.
+                if (Generation == DodgeGeneration) EndDodge();
+            });
+            AnimInstance->Montage_SetEndDelegate(EndDelegate, DodgeMontage);
+            return;
+        }
     }
+    EndDodge();
 }
 
 void ACombatPlayerCharacter::EndDodge()
 {
+    if (actionState != EactionState::EAS_Dodging || !IsCombatAlive()) return;
+    bDodgeInvulnerable = false;
+    ChangeActionState(EactionState::EAS_Unoccupied, TEXT("Dodge recovery"));
     // A dodge out of block returns to block if the button is still held (Souls-style).
     ResumeBlockIfHeld();
 }
 
 void ACombatPlayerCharacter::StartBlock()
 {
-    SetActionState( EactionState::EAS_Blocking);
+    if (!TryStartAction(EactionState::EAS_Blocking)) return;
+    SetAttackNumber(0);
 
     if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
     {
@@ -268,23 +571,13 @@ void ACombatPlayerCharacter::EndBlock()
         {
             AnimInstance->Montage_SetNextSection(TEXT("Hold"), TEXT("Release"));
         }
-        AnimInstance->Montage_Stop(0.15f, BlockImpactMontage);
+        if (BlockImpactMontage) AnimInstance->Montage_Stop(0.15f, BlockImpactMontage);
     }
-}
-
-bool ACombatPlayerCharacter::CanHeal() const
-{
-    // Neutral stance, alive, and missing health. The no-magic case isn't gated here —
-    // the first HealTick spends magic and stops immediately if it can't afford a pulse.
-    return actionState == EactionState::EAS_Unoccupied
-        && attributeComponent
-        && attributeComponent->IsAlive()
-        && !attributeComponent->IsHealthFull();
 }
 
 void ACombatPlayerCharacter::StartHeal()
 {
-    if (!CanHeal())
+    if (!TryStartAction(EactionState::EAS_Healing))
     {
         if (CVarCombatDebug.GetValueOnGameThread() != 0 && attributeComponent && attributeComponent->IsHealthFull())
         {
@@ -292,8 +585,6 @@ void ACombatPlayerCharacter::StartHeal()
         }
         return;
     }
-
-    SetActionState(EactionState::EAS_Healing);
 
     if (HealMontage)
     {
@@ -319,22 +610,20 @@ void ACombatPlayerCharacter::StartHeal()
 
 void ACombatPlayerCharacter::HealTick()
 {
-    // The timer outlives the heal state (a hit-react or dodge can flip actionState
-    // without touching the timer); stop ourselves if we're no longer healing.
-    if (actionState != EactionState::EAS_Healing)
+    // Animation callbacks can change the state before the next heal pulse.
+    if (actionState != EactionState::EAS_Healing || !IsCombatAlive())
     {
         StopHeal();
         return;
     }
 
-    // Check fullness before spending: a wasted pulse on a full bar feels like a bug.
+    // Check fullness before spending magic.
     if (!attributeComponent || attributeComponent->IsHealthFull())
     {
         StopHeal();
         return;
     }
 
-    // RemoveMagic returns false when the next pulse is unaffordable — the natural end of a channel.
     if (!attributeComponent->RemoveMagic(MagicPerTick))
     {
         if (CVarCombatDebug.GetValueOnGameThread() != 0)
@@ -361,7 +650,8 @@ void ACombatPlayerCharacter::StopHeal()
 
     if (actionState == EactionState::EAS_Healing)
     {
-        actionState = EactionState::EAS_Unoccupied;
+        InterruptGameplayNotifies(EGameplayNotifyInterruptReason::ActionCancelled);
+        ChangeActionState(EactionState::EAS_Unoccupied, TEXT("Heal stopped"));
     }
 
     if (HealMontage)
@@ -381,14 +671,13 @@ bool ACombatPlayerCharacter::IsBlockHeld() const
     // Poll the live input value rather than mirror it in a flag — one source of truth,
     // so block intent can't drift out of sync. Needs BindActionValue(BlockAction) in setup.
     if (const UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(InputComponent))
-    {
         return EnhancedInputComponent->GetBoundActionValue(BlockAction).Get<bool>();
-    }
     return false;
 }
 
 void ACombatPlayerCharacter::ResumeBlockIfHeld()
 {
+    if (!IsActionInputAllowed()) return;
     if (IsBlockHeld())
     {
         StartBlock();
@@ -418,14 +707,14 @@ FVector ACombatPlayerCharacter::GetMoveInputWorldDirection() const
 
 bool ACombatPlayerCharacter::CanAttack()
 {
-    return (actionState == EactionState::EAS_Unoccupied ||
-        actionState == EactionState::EAS_Comboing)
-        && state != ECharacterState::ECS_Unequipped;
+    return CanStartAction(EactionState::EAS_Attacking);
 }
 
 float ACombatPlayerCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
                                          AController* EventInstigator, AActor* DamageCauser)
 {
+    if (!IsCombatAlive() || (actionState == EactionState::EAS_Dodging && bDodgeInvulnerable))
+        return 0.f;
     const bool bCombatDebug = CVarCombatDebug.GetValueOnGameThread() != 0;
 
     if (actionState == EactionState::EAS_Blocking)
@@ -565,9 +854,10 @@ bool ACombatPlayerCharacter::IsDirectionInBlockCone(const FVector& ToSource) con
 
 void ACombatPlayerCharacter::GetHit_Implementation(const FVector& impactPoint, const FVector& impactDirection, const float& damage )
 {
-    // A hit interrupts a heal channel (you were never blocking, so this is an unblocked hit).
-    if (actionState == EactionState::EAS_Healing)
-        StopHeal();
+    // Damage dealers use both call orders. Never present a hurt/block reaction for a corpse
+    // or an invulnerable dodge, even if damage was rejected before this notification.
+    if (!IsCombatAlive() || !CanBeDamaged()
+        || (actionState == EactionState::EAS_Dodging && bDodgeInvulnerable)) return;
 
     // GetHit only picks the react. Consume a same-frame verdict from TakeDamage
     // if one exists; otherwise judge here and publish for the TakeDamage that follows.
@@ -607,29 +897,14 @@ void ACombatPlayerCharacter::GetHit_Implementation(const FVector& impactPoint, c
         return;
     }
 
-    CharacterHit(impactPoint, impactDirection);
-
-    if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
-    {
-        if (HitReactMontage)
-        {
-            AnimInstance->Montage_Play(HitReactMontage);
-            // An unblocked hit breaks whatever you were doing, including a held guard.
-            SetActionState(EactionState::EAS_Unoccupied);
-            // Re-raise the guard once the stagger ends, if block is still held.
-            FOnMontageEnded EndDelegate;
-            EndDelegate.BindUObject(this, &ACombatPlayerCharacter::OnHitReactMontageEnded);
-            AnimInstance->Montage_SetEndDelegate(EndDelegate, HitReactMontage);
-        }
-    }
+    EnterStagger();
+    if (IsCombatAlive()) CharacterHit(impactPoint, impactDirection);
 }
 
 void ACombatPlayerCharacter::PlayBlockImpactMontage()
 {
     if (!ensureMsgf(BlockImpactMontage, TEXT("%s: BlockImpactMontage is not assigned — blocked hits play no react"), *GetName()))
-    {
         return;
-    }
 
     if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
     {
@@ -651,19 +926,16 @@ void ACombatPlayerCharacter::OnBlockImpactMontageEnded(UAnimMontage* Montage, bo
     }
 }
 
-void ACombatPlayerCharacter::OnHitReactMontageEnded(UAnimMontage* Montage, bool bInterrupted)
-{
-    // Resume only on a clean finish; if another hit or a dodge interrupted the stagger,
-    // that action owns the next state.
-    if (!bInterrupted)
-    {
-        ResumeBlockIfHeld();
-    }
-}
-
 void ACombatPlayerCharacter::CharacterDied_Implementation()
 {
-    GEngine->AddOnScreenDebugMessage(0, 1, FColor::Red, TEXT("Dead"));
+    // Establish terminal priority before stopping montages and their notify states.
+    bCombatDead = true;
+    ++StaggerGeneration;
+    GetWorldTimerManager().ClearTimer(StaggerTimerHandle);
+    CancelCurrentAction(EGameplayNotifyInterruptReason::Death);
+    comboIndex = 0;
+    GetCharacterMovement()->DisableMovement();
+    ShowActionDebugEvent(this, TEXT("Death: actions cancelled, movement disabled"), FColor::Red);
     GetMesh()->SetAnimInstanceClass(nullptr);
 
     if (UWorld* World = GetWorld())
@@ -677,6 +949,7 @@ void ACombatPlayerCharacter::CharacterDied_Implementation()
 
 void ACombatPlayerCharacter::MovePlayerToEnemy(AActor* player, AActor* enemy)
 {
+    if (!IsActionInputAllowed()) return;
     FVector delta = player->GetActorLocation() - enemy->GetActorLocation();
     FVector direction = UKismetMathLibrary::Normal(delta, .001f);
     FVector magnitude = direction * 150.f;
@@ -701,6 +974,7 @@ void ACombatPlayerCharacter::PlayAttackMontage()
     if (!AttackMontage)
     {
         GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, TEXT("No Base AttackMontage Set. Aborting"));
+        AttackEnd();
         return;
     }
 
@@ -718,26 +992,33 @@ void ACombatPlayerCharacter::PlayAttackMontage()
     {
         if (AttackMontageToUse)
         {
-            AnimInstance->Montage_Play(AttackMontageToUse);
-            AnimInstance->Montage_JumpToSection(GetCurrentAttack(), AttackMontageToUse);
+            if (AnimInstance->Montage_Play(AttackMontageToUse) > 0.f)
+            {
+                AnimInstance->Montage_JumpToSection(GetCurrentAttack(), AttackMontageToUse);
+                return;
+            }
         }
 
     }
+    AttackEnd();
 }
 
 void ACombatPlayerCharacter::AttackEnd()
 {
+    if (actionState != EactionState::EAS_Attacking && actionState != EactionState::EAS_Comboing) return;
     SetActionState(EactionState::EAS_Unoccupied);
     SetAttackNumber(0);
 }
 
 void ACombatPlayerCharacter::StartInputBuffer()
 {
+    if (actionState != EactionState::EAS_Attacking) return;
     SetActionState(EactionState::EAS_Comboing);
 }
 
 void ACombatPlayerCharacter::EndBuffer()
 {
+    if (actionState != EactionState::EAS_Comboing) return;
     SetActionState(EactionState::EAS_Unoccupied);
 }
 
@@ -750,6 +1031,26 @@ FName ACombatPlayerCharacter::GetCurrentAttack()
 void ACombatPlayerCharacter::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
+
+    if (GEngine)
+    {
+        if (CVarActionDebug.GetValueOnGameThread() > 0 && IsPlayerControlled() && IsLocallyControlled())
+        {
+            const UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+            const UAnimMontage* Montage = AnimInstance ? AnimInstance->GetCurrentActiveMontage() : nullptr;
+            const FString StateLabel = IsCombatAlive() ? ActionStateName(actionState) : TEXT("Dead");
+            const FColor Color = !IsCombatAlive() || actionState == EactionState::EAS_Staggered ? FColor::Red : FColor::Cyan;
+            GEngine->AddOnScreenDebugMessage(ActionDebugScreenKey(this, false), 0.5f, Color,
+                FString::Printf(TEXT("[%s] ACTION: %s | Combo: %d | Dodge invulnerable: %s\nMontage: %s | Active ASNs: %d"),
+                    *GetName(), *StateLabel, comboIndex, bDodgeInvulnerable ? TEXT("yes") : TEXT("no"),
+                    *GetNameSafe(Montage), ActiveGameplayNotifies.Num()), false, FVector2D(1.2f, 1.2f));
+        }
+        else
+        {
+            GEngine->RemoveOnScreenDebugMessage(ActionDebugScreenKey(this, false));
+            GEngine->RemoveOnScreenDebugMessage(ActionDebugScreenKey(this, true));
+        }
+    }
 
     // Block-cone overlay: the edge lines are the exact bounds the verdict uses.
     if (actionState == EactionState::EAS_Blocking && CVarCombatDebug.GetValueOnGameThread() != 0)
@@ -795,6 +1096,8 @@ void ACombatPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerIn
 
 void ACombatPlayerCharacter::SetWeaponCollisionEnabled(ECollisionEnabled::Type CollisionEnabled)
 {
+    // Cleanup is always allowed; an old notify cannot re-enable the hitbox during stagger/death.
+    if (CollisionEnabled != ECollisionEnabled::NoCollision && !IsActionInputAllowed()) return;
     if (equippedWeapon && equippedWeapon->GetWeaponBoxComponent())
     {
         equippedWeapon->GetWeaponBoxComponent()->SetCollisionEnabled(CollisionEnabled);

@@ -1,10 +1,10 @@
 
-// CPPCharacter.h
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "Engine/TimerHandle.h"
+#include "Animation/AnimNotifyQueue.h"
 // EnhancedInput inline code narrows double->float; engine-owned, exempt from UnsafeTypeCastWarningLevel.
 PRAGMA_DISABLE_UNSAFE_TYPECAST_WARNINGS
 #include "InputAction.h"
@@ -24,6 +24,7 @@ class AItem;
 class AWeapon;
 class ACurrency;
 class UAnimInstance;
+class UAnimNotifyState;
 class UWeaponDataAsset;
 class UTimelineComponent;
 class UAC_HitStop;
@@ -66,7 +67,6 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Weapon")
     void EquipExistingWeapon(AWeapon* WeaponInstance);
 
-    // Spawn from DataAsset
     UFUNCTION(BlueprintCallable, Category = "Weapon")
     AWeapon* SpawnAndEquipWeapon(TSubclassOf<AWeapon> Weapon);
 
@@ -75,6 +75,25 @@ public:
     void SetAttackNumber(int AttackNumber);
     UFUNCTION(BlueprintCallable, Category = "ComboIndex")
     void SetActionState(EactionState ActionState);
+    UFUNCTION(BlueprintPure, Category = "Combat|Actions")
+    bool IsActionInputAllowed() const;
+    UFUNCTION(BlueprintPure, Category = "Combat|Actions")
+    bool CanStartAction(EactionState RequestedAction) const;
+    UFUNCTION(BlueprintCallable, Category = "Combat|Actions")
+    bool TryStartAction(EactionState RequestedAction);
+    UFUNCTION(BlueprintPure, Category = "Combat|Actions")
+    EactionState GetActionState() const { return actionState; }
+
+    // Register from AnimNotifyState Begin to track interruptions for this player.
+    UFUNCTION(BlueprintCallable, Category = "Combat|Animation")
+    void RegisterAnimNotifyState(const UAnimNotifyState* NotifyState, const FAnimNotifyEventReference& EventReference);
+    // Consume from AnimNotifyState End. Always clean up; only None permits normal completion.
+    UFUNCTION(BlueprintCallable, Category = "Combat|Animation")
+    EGameplayNotifyInterruptReason ConsumeAnimNotifyStateInterruptReason(const UAnimNotifyState* NotifyState,
+        const FAnimNotifyEventReference& EventReference);
+    UFUNCTION(BlueprintCallable, Category = "Combat|Animation")
+    void SetDodgeInvulnerable(bool bEnabled);
+    virtual void Jump() override;
     UFUNCTION(BlueprintPure, Category = "ComboIndex")
     int GetAttackNumber();
 
@@ -84,6 +103,7 @@ public:
 protected:
 
     virtual void BeginPlay() override;
+    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attributes")
     UAttributeComponent* attributeComponent;
@@ -134,7 +154,11 @@ protected:
     bool IsDirectionInBlockCone(const FVector& ToSource) const;
     void PlayBlockImpactMontage();
     void OnBlockImpactMontageEnded(UAnimMontage* Montage, bool bInterrupted);
-    void OnHitReactMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+    void EnterStagger();
+    void FinishStagger(uint32 Generation);
+    void CancelCurrentAction(EGameplayNotifyInterruptReason InterruptReason);
+    void InterruptGameplayNotifies(EGameplayNotifyInterruptReason InterruptReason);
+    bool IsCombatAlive() const;
 
     // True while the block input is held — polled from Enhanced Input, not latched in a flag.
     bool IsBlockHeld() const;
@@ -179,13 +203,15 @@ protected:
     void HealTick();
 
     bool CanAttack();
-    bool CanHeal() const;
 
 private:
 
+    // Callers enforce transition rules; this assigns the state and logs changes.
+    void ChangeActionState(EactionState NewState, const TCHAR* Reason);
+
     ECharacterState state = ECharacterState::ECS_Unequipped;
 
-    UPROPERTY(BlueprintReadWrite, meta = (AllowPrivateAccess = true))
+    UPROPERTY(BlueprintReadOnly, meta = (AllowPrivateAccess = true))
 
     EactionState actionState = EactionState::EAS_Unoccupied;
 
@@ -213,6 +239,28 @@ private:
 
     UPROPERTY(EditDefaultsOnly, Category = "Montages")
     UAnimMontage* HitReactMontage;
+
+    // Restart recovery when hit again during stagger.
+    UPROPERTY(EditDefaultsOnly, Category = "Combat|Stagger")
+    bool bRestartStaggerOnHit = true;
+
+    // Recovery time in seconds when HitReactMontage cannot play.
+    UPROPERTY(EditDefaultsOnly, Category = "Combat|Stagger", meta = (ClampMin = "0.01"))
+    float StaggerFallbackDuration = 0.42f;
+
+    FTimerHandle StaggerTimerHandle;
+    uint32 StaggerGeneration = 0;
+    uint32 DodgeGeneration = 0;
+    bool bCombatDead = false;
+    bool bDodgeInvulnerable = false;
+    struct FActiveGameplayNotify
+    {
+        TWeakObjectPtr<const UAnimNotifyState> NotifyState;
+        // Distinguishes montage activations; INDEX_NONE when the event has no montage context.
+        int32 MontageInstanceID = INDEX_NONE;
+        EGameplayNotifyInterruptReason InterruptReason = EGameplayNotifyInterruptReason::None;
+    };
+    TArray<FActiveGameplayNotify> ActiveGameplayNotifies;
 
     UPROPERTY(EditDefaultsOnly, Category = "Montages")
     UAnimMontage* BlockImpactMontage;

@@ -12,6 +12,15 @@ class AStrikeHitTestCharacter : public ACombatPlayerCharacter
     GENERATED_BODY()
 
 public:
+    using ACombatPlayerCharacter::AttackEnd;
+    using ACombatPlayerCharacter::EndBuffer;
+    using ACombatPlayerCharacter::EndDodge;
+    using ACombatPlayerCharacter::FinishStagger;
+    using ACombatPlayerCharacter::StartBlock;
+    using ACombatPlayerCharacter::StartDodge;
+    using ACombatPlayerCharacter::StartHeal;
+    using ACombatPlayerCharacter::StartInputBuffer;
+
     virtual float TakeDamage(float Amount, const FDamageEvent& Event, AController* EventInstigator, AActor* Causer) override
     {
         ++DamageCalls;
@@ -35,12 +44,17 @@ public:
     virtual void ProcessEvent(UFunction* Function, void* Parameters) override
     {
         if (Function->GetFName() == TEXT("CharacterBlockedHit")) bLastHitBlocked = true;
-        if (Function->GetFName() == TEXT("CharacterHit")) bLastHitBlocked = false;
+        if (Function->GetFName() == TEXT("CharacterHit")) { bLastHitBlocked = false; ++HurtEvents; }
         Super::ProcessEvent(Function, Parameters);
     }
 
     int32 DamageCalls = 0;
     int32 HitCalls = 0;
+    int32 HurtEvents = 0;
+    int32 GameplayNotifyBegins = 0;
+    int32 NormalNotifyCompletions = 0;
+    TArray<EGameplayNotifyInterruptReason> GameplayNotifyEndReasons;
+    TArray<EactionState> GameplayNotifyEndStates;
     float AppliedDamage = 0.f;
     float HitDamage = 0.f;
     bool bDamageBeforeHit = false;
