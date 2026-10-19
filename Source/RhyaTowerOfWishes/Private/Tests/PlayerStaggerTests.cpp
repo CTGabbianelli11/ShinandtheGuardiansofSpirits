@@ -74,7 +74,8 @@ bool FPlayerStaggerCleanupTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Combo cleared"), Player->GetAttackNumber(), 0);
     TestEqual(TEXT("Air stall remains owned by ASN"), Player->GetCharacterMovement()->MovementMode.GetValue(), MOVE_Flying);
     TestEqual(TEXT("Falling velocity retained"), Player->GetCharacterMovement()->Velocity.Z, -90.0);
-    TestEqual(TEXT("Attack momentum removed"), Player->GetCharacterMovement()->Velocity.SizeSquared2D(), 0.0);
+    TestTrue(TEXT("Attack momentum replaced by knockback"),
+        Player->GetCharacterMovement()->Velocity.Equals(FVector(-200.f, 0.f, -90.f)));
     TestFalse(TEXT("Blueprint action gate closed"), Player->IsActionInputAllowed());
     for (EactionState Action : {EactionState::EAS_Attacking, EactionState::EAS_Comboing,
         EactionState::EAS_Dodging, EactionState::EAS_Blocking, EactionState::EAS_Healing, EactionState::EAS_Unoccupied})
@@ -366,6 +367,37 @@ bool FPlayerNotifyInterruptionTest::RunTest(const FString& Parameters)
     Player->RegisterAnimNotifyState(SharedNotify, NewReference);
     TestEqual(TEXT("Late Begin records death without acting as an action gate"), Player->ConsumeAnimNotifyStateInterruptReason(SharedNotify, NewReference),
         EGameplayNotifyInterruptReason::Death);
+    Fixture.ForwardErrorMessages(this);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPlayerHitKnockbackTest, "Rhya.Combat.Player.HitKnockback",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FPlayerHitKnockbackTest::RunTest(const FString& Parameters)
+{
+    FTestWorldWrapper Fixture;
+    if (!Fixture.CreateTestWorld(EWorldType::Game) || !Fixture.BeginPlayInTestWorld()) return false;
+    auto* Player = Fixture.GetTestWorld()->SpawnActor<AStrikeHitTestCharacter>();
+    auto* Movement = Player->GetCharacterMovement();
+    Player->SetActorRotation(FRotator(10.f, 0.f, 5.f));
+    Movement->Velocity = FVector(123.f, 456.f, -90.f);
+    const FVector Contact = Player->GetActorLocation() + FVector(0.f, 50.f, 100.f);
+    Player->GetHit_Implementation(Contact, FVector::ForwardVector, 10.f);
+    TestTrue(TEXT("Faces contact using yaw only"), Player->GetActorRotation().Equals(FRotator(10.f, 90.f, 5.f)));
+    TestTrue(TEXT("Pushes away horizontally and preserves vertical speed"),
+        Movement->Velocity.Equals(FVector(0.f, -200.f, -90.f)));
+
+    Player->GetHit_Implementation(Contact, FVector::ForwardVector, 20.f);
+    TestTrue(TEXT("Damage scales speed"), Movement->Velocity.Equals(FVector(0.f, -400.f, -90.f)));
+    Player->GetHit_Implementation(Contact, FVector::ForwardVector, 100.f);
+    TestTrue(TEXT("Large hits are capped"), Movement->Velocity.Equals(FVector(0.f, -600.f, -90.f)));
+    Player->GetHit_Implementation(Player->GetActorLocation(), FVector(-1.f, 0.f, 1.f), 10.f);
+    TestTrue(TEXT("Centered hit falls back to normal"), Movement->Velocity.Equals(FVector(200.f, 0.f, -90.f)));
+    Player->GetHit_Implementation(Player->GetActorLocation(), FVector::UpVector, 10.f);
+    TestTrue(TEXT("No horizontal source produces no arbitrary push"), Movement->Velocity.Equals(FVector(0.f, 0.f, -90.f)));
+    Player->GetHit_Implementation(Contact, FVector::ForwardVector, 0.f);
+    TestTrue(TEXT("Zero damage does not push"), Movement->Velocity.Equals(FVector(0.f, 0.f, -90.f)));
     Fixture.ForwardErrorMessages(this);
     return true;
 }

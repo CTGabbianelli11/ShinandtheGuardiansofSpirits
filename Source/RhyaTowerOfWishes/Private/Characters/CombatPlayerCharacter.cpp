@@ -898,7 +898,30 @@ void ACombatPlayerCharacter::GetHit_Implementation(const FVector& impactPoint, c
     }
 
     EnterStagger();
-    if (IsCombatAlive()) CharacterHit(impactPoint, impactDirection);
+    if (!IsCombatAlive()) return;
+
+    // Face the contact
+    FVector ToImpact = (impactPoint - GetActorLocation()).GetSafeNormal2D();
+    if (ToImpact.IsNearlyZero()) ToImpact = impactDirection.GetSafeNormal2D();
+    if (!ToImpact.IsNearlyZero() && !ToImpact.ContainsNaN())
+    {
+        FRotator Facing = GetActorRotation();
+        Facing.Yaw = ToImpact.Rotation().Yaw;
+        SetActorRotation(Facing);
+
+        if (FMath::IsFinite(damage) && damage > 0.f)
+        {
+            const float Speed = FMath::Min(damage * FMath::Max(0.f, KnockbackSpeedPerDamage),
+                FMath::Max(0.f, MaxKnockbackSpeed));
+            if (Speed > 0.f)
+            {
+                UCharacterMovementComponent* Movement = GetCharacterMovement();
+                Movement->Velocity.X = -ToImpact.X * Speed;
+                Movement->Velocity.Y = -ToImpact.Y * Speed;
+            }
+        }
+    }
+    CharacterHit(impactPoint, impactDirection);
 }
 
 void ACombatPlayerCharacter::PlayBlockImpactMontage()

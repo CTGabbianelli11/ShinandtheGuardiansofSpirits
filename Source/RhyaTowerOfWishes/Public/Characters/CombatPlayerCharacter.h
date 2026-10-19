@@ -240,6 +240,13 @@ private:
     UPROPERTY(EditDefaultsOnly, Category = "Montages")
     UAnimMontage* HitReactMontage;
 
+    // Horizontal knockback speed per point of damage (cm/s). Zero disables knockback.
+    UPROPERTY(EditDefaultsOnly, Category = "Combat|Hit Reaction", meta = (ClampMin = "0.0"))
+    float KnockbackSpeedPerDamage = 20.f;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Combat|Hit Reaction", meta = (ClampMin = "0.0", Units = "cm/s"))
+    float MaxKnockbackSpeed = 600.f;
+
     // Restart recovery when hit again during stagger.
     UPROPERTY(EditDefaultsOnly, Category = "Combat|Stagger")
     bool bRestartStaggerOnHit = true;
