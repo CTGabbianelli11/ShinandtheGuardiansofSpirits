@@ -394,7 +394,7 @@ void ACombatPlayerCharacter::CancelCurrentAction(EGameplayNotifyInterruptReason 
         AnimInstance->Montage_Stop(0.1f);
 }
 
-void ACombatPlayerCharacter::EnterStagger()
+void ACombatPlayerCharacter::EnterStagger(bool bWaitForLanding)
 {
     if (!IsCombatAlive()) return;
     if (actionState == EactionState::EAS_Staggered && !bRestartStaggerOnHit)
@@ -405,6 +405,7 @@ void ACombatPlayerCharacter::EnterStagger()
 
     // Invalidate old recovery before stopping: Stop can synchronously dispatch callbacks.
     const uint32 Generation = ++StaggerGeneration;
+    bWaitingForHitLanding = bWaitForLanding;
     if (actionState == EactionState::EAS_Staggered)
         ShowActionDebugEvent(this, TEXT("Stagger restarted by another hit"), FColor::Red);
     ChangeActionState(EactionState::EAS_Staggered, TEXT("Hit"));
@@ -420,6 +421,14 @@ void ACombatPlayerCharacter::EnterStagger()
     {
         if (HitReactMontage && AnimInstance->Montage_Play(HitReactMontage) > 0.f)
         {
+            if (bWaitingForHitLanding)
+            {
+                // Hold the final air pose without changing the shared montage asset.
+                // Landed replaces this instance with the landing montage.
+                if (FAnimMontageInstance* Instance = AnimInstance->GetActiveInstanceForMontage(HitReactMontage))
+                    Instance->bEnableAutoBlendOut = false;
+                return;
+            }
             FOnMontageEnded EndDelegate;
             EndDelegate.BindWeakLambda(this, [this, Generation](UAnimMontage*, bool)
             {
@@ -432,6 +441,8 @@ void ACombatPlayerCharacter::EnterStagger()
             return;
         }
     }
+    // Missing air animation must not release control while the launched capsule is airborne.
+    if (bWaitingForHitLanding) return;
     FTimerDelegate Recovery;
     Recovery.BindWeakLambda(this, [this, Generation]() { FinishStagger(Generation); });
     GetWorldTimerManager().SetTimer(StaggerTimerHandle, Recovery,
@@ -440,9 +451,58 @@ void ACombatPlayerCharacter::EnterStagger()
         FMath::Max(StaggerFallbackDuration, 0.01f)), FColor::Orange);
 }
 
+void ACombatPlayerCharacter::Landed(const FHitResult& Hit)
+{
+    Super::Landed(Hit);
+    if (!bWaitingForHitLanding || actionState != EactionState::EAS_Staggered || !IsCombatAlive()) return;
+    bWaitingForHitLanding = false;
+    const uint32 Generation = StaggerGeneration;
+    GetWorldTimerManager().ClearTimer(StaggerTimerHandle);
+    // waffling on this: do we stop movement or not on land? let's keep the skid for now.
+    // GetCharacterMovement()->Velocity.X = 0.f;
+    // GetCharacterMovement()->Velocity.Y = 0.f;
+    if (HitGroundedHoldDuration > 0.f)
+    {
+        FTimerDelegate BeginRecovery;
+        BeginRecovery.BindWeakLambda(this, [this, Generation]() { StartHitLandingRecovery(Generation); });
+        GetWorldTimerManager().SetTimer(StaggerTimerHandle, BeginRecovery, HitGroundedHoldDuration, false);
+        LogActionDebug(this, TEXT("Hit landed: holding downed pose before recovery"));
+        return;
+    }
+    StartHitLandingRecovery(Generation);
+}
+
+void ACombatPlayerCharacter::StartHitLandingRecovery(uint32 Generation)
+{
+    if (Generation != StaggerGeneration || bWaitingForHitLanding
+        || actionState != EactionState::EAS_Staggered || !IsCombatAlive()) return;
+    if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
+    {
+        AnimInstance->Montage_Stop(0.1f, HitReactMontage);
+        if (LandHitReactMontage && AnimInstance->Montage_Play(LandHitReactMontage) > 0.f)
+        {
+            if (FAnimMontageInstance* Instance = AnimInstance->GetActiveInstanceForMontage(LandHitReactMontage))
+                Instance->bEnableAutoBlendOut = true;
+            FOnMontageEnded EndDelegate;
+            EndDelegate.BindWeakLambda(this, [this, Generation](UAnimMontage*, bool)
+            {
+                FinishStagger(Generation);
+            });
+            AnimInstance->Montage_SetEndDelegate(EndDelegate, LandHitReactMontage);
+            LogActionDebug(this, TEXT("Hit landed: recovery follows landing montage"));
+            return;
+        }
+    }
+    FTimerDelegate Recovery;
+    Recovery.BindWeakLambda(this, [this, Generation]() { FinishStagger(Generation); });
+    GetWorldTimerManager().SetTimer(StaggerTimerHandle, Recovery,
+        FMath::Max(StaggerFallbackDuration, 0.01f), false);
+    LogActionDebug(this, TEXT("Hit landed: landing montage unavailable, using recovery timer"));
+}
+
 void ACombatPlayerCharacter::FinishStagger(uint32 Generation)
 {
-    if (Generation != StaggerGeneration || actionState != EactionState::EAS_Staggered || !IsCombatAlive())
+    if (Generation != StaggerGeneration || bWaitingForHitLanding || actionState != EactionState::EAS_Staggered || !IsCombatAlive())
     {
         LogActionDebug(this, FString::Printf(TEXT("Ignored stagger recovery: callback=%u, current=%u, state=%s, alive=%d"),
             Generation, StaggerGeneration, *ActionStateName(actionState), IsCombatAlive()), 2);
@@ -897,29 +957,41 @@ void ACombatPlayerCharacter::GetHit_Implementation(const FVector& impactPoint, c
         return;
     }
 
-    EnterStagger();
+    if (!bEnableKnockbackHitReaction)
+    {
+        CharacterHit(impactPoint, impactDirection);
+        return;
+    }
+
+    FVector ToImpact = impactDirection.GetSafeNormal2D();
+    if (ToImpact.ContainsNaN() || ToImpact.IsNearlyZero())
+        ToImpact = (impactPoint - GetActorLocation()).GetSafeNormal2D();
+    // A centered/vertical hit has no horizontal source; recoil backward from current facing.
+    if (ToImpact.ContainsNaN() || ToImpact.IsNearlyZero()) ToImpact = GetActorForwardVector().GetSafeNormal2D();
+    FRotator Facing = GetActorRotation();
+    Facing.Yaw = ToImpact.Rotation().Yaw;
+    SetActorRotation(Facing);
+
+    if (CVarCombatDebug.GetValueOnGameThread() != 0)
+    {
+        DrawDebugDirectionalArrow(GetWorld(), GetActorLocation(),
+            GetActorLocation() + ToImpact * 150.f, 20.f, FColor::Yellow, false, 2.f, SDPG_Foreground, 2.f);
+        UE_LOG(LogPlayerActions, Log, TEXT("Hit facing: normal=%s contact=%s source=%s yaw=%.1f"),
+            *impactDirection.ToCompactString(), *impactPoint.ToCompactString(),
+            *ToImpact.ToCompactString(), Facing.Yaw);
+    }
+
+    const UCharacterMovementComponent* Movement = GetCharacterMovement();
+    const bool bWillLaunch = FMath::IsFinite(damage) && damage > 0.f && HitLaunchUpSpeed > 0.f
+        && Movement->IsActive() && Movement->MovementMode != MOVE_None;
+    EnterStagger(LandHitReactMontage && bWillLaunch);
     if (!IsCombatAlive()) return;
 
-    // Face the contact
-    FVector ToImpact = (impactPoint - GetActorLocation()).GetSafeNormal2D();
-    if (ToImpact.IsNearlyZero()) ToImpact = impactDirection.GetSafeNormal2D();
-    if (!ToImpact.IsNearlyZero() && !ToImpact.ContainsNaN())
+    if (FMath::IsFinite(damage) && damage > 0.f)
     {
-        FRotator Facing = GetActorRotation();
-        Facing.Yaw = ToImpact.Rotation().Yaw;
-        SetActorRotation(Facing);
-
-        if (FMath::IsFinite(damage) && damage > 0.f)
-        {
-            const float Speed = FMath::Min(damage * FMath::Max(0.f, KnockbackSpeedPerDamage),
-                FMath::Max(0.f, MaxKnockbackSpeed));
-            if (Speed > 0.f)
-            {
-                UCharacterMovementComponent* Movement = GetCharacterMovement();
-                Movement->Velocity.X = -ToImpact.X * Speed;
-                Movement->Velocity.Y = -ToImpact.Y * Speed;
-            }
-        }
+        const float Speed = FMath::Max(0.f, KnockbackSpeed);
+        const FVector LaunchVelocity = -ToImpact * Speed + FVector::UpVector * FMath::Max(0.f, HitLaunchUpSpeed);
+        LaunchCharacter(LaunchVelocity, true, true);
     }
     CharacterHit(impactPoint, impactDirection);
 }

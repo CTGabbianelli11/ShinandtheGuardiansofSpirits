@@ -40,6 +40,7 @@ public:
 
     ACombatPlayerCharacter();
     virtual void Tick(float DeltaTime) override;
+    virtual void Landed(const FHitResult& Hit) override;
     virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
     // Blocking gate for all damage sources: a blocked frontal hit returns without
@@ -154,7 +155,8 @@ protected:
     bool IsDirectionInBlockCone(const FVector& ToSource) const;
     void PlayBlockImpactMontage();
     void OnBlockImpactMontageEnded(UAnimMontage* Montage, bool bInterrupted);
-    void EnterStagger();
+    void EnterStagger(bool bWaitForLanding = false);
+    void StartHitLandingRecovery(uint32 Generation);
     void FinishStagger(uint32 Generation);
     void CancelCurrentAction(EGameplayNotifyInterruptReason InterruptReason);
     void InterruptGameplayNotifies(EGameplayNotifyInterruptReason InterruptReason);
@@ -240,12 +242,25 @@ private:
     UPROPERTY(EditDefaultsOnly, Category = "Montages")
     UAnimMontage* HitReactMontage;
 
-    // Horizontal knockback speed per point of damage (cm/s). Zero disables knockback.
-    UPROPERTY(EditDefaultsOnly, Category = "Combat|Hit Reaction", meta = (ClampMin = "0.0"))
-    float KnockbackSpeedPerDamage = 20.f;
+    // When assigned, launched hits hold their air pose until landing, then recover through this montage.
+    UPROPERTY(EditDefaultsOnly, Category = "Montages")
+    UAnimMontage* LandHitReactMontage;
 
+    // Disable the scripted facing, stagger, launch and landing sequence. Damage and hit effects still run.
+    UPROPERTY(EditDefaultsOnly, Category = "Combat|Hit Reaction")
+    bool bEnableKnockbackHitReaction = true;
+
+    // Backward launch speed, independent of damage. Zero disables horizontal knockback.
     UPROPERTY(EditDefaultsOnly, Category = "Combat|Hit Reaction", meta = (ClampMin = "0.0", Units = "cm/s"))
-    float MaxKnockbackSpeed = 600.f;
+    float KnockbackSpeed = 400.f;
+
+    // Upward component of the launch velocity; independent of horizontal knockback.
+    UPROPERTY(EditDefaultsOnly, Category = "Combat|Hit Reaction", meta = (ClampMin = "0.0", Units = "cm/s"))
+    float HitLaunchUpSpeed = 350.f;
+
+    // Hold the downed pose after ground contact before starting the get-up montage.
+    UPROPERTY(EditDefaultsOnly, Category = "Combat|Hit Reaction", meta = (ClampMin = "0.0", Units = "s"))
+    float HitGroundedHoldDuration = 0.25f;
 
     // Restart recovery when hit again during stagger.
     UPROPERTY(EditDefaultsOnly, Category = "Combat|Stagger")
@@ -257,6 +272,7 @@ private:
 
     FTimerHandle StaggerTimerHandle;
     uint32 StaggerGeneration = 0;
+    bool bWaitingForHitLanding = false;
     uint32 DodgeGeneration = 0;
     bool bCombatDead = false;
     bool bDodgeInvulnerable = false;
