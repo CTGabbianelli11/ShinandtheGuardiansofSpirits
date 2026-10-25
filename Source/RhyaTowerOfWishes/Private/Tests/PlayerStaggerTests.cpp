@@ -74,8 +74,8 @@ bool FPlayerStaggerCleanupTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Combo cleared"), Player->GetAttackNumber(), 0);
     TestEqual(TEXT("Air stall remains owned by ASN"), Player->GetCharacterMovement()->MovementMode.GetValue(), MOVE_Flying);
     TestEqual(TEXT("Falling velocity retained"), Player->GetCharacterMovement()->Velocity.Z, -90.0);
-    TestTrue(TEXT("Attack momentum replaced by knockback"),
-        Player->GetCharacterMovement()->Velocity.Equals(FVector(-200.f, 0.f, -90.f)));
+    TestTrue(TEXT("Attack momentum cleared before deferred launch"),
+        Player->GetCharacterMovement()->Velocity.Equals(FVector(0.f, 0.f, -90.f)));
     TestFalse(TEXT("Blueprint action gate closed"), Player->IsActionInputAllowed());
     for (EactionState Action : {EactionState::EAS_Attacking, EactionState::EAS_Comboing,
         EactionState::EAS_Dodging, EactionState::EAS_Blocking, EactionState::EAS_Healing, EactionState::EAS_Unoccupied})
@@ -380,24 +380,102 @@ bool FPlayerHitKnockbackTest::RunTest(const FString& Parameters)
     if (!Fixture.CreateTestWorld(EWorldType::Game) || !Fixture.BeginPlayInTestWorld()) return false;
     auto* Player = Fixture.GetTestWorld()->SpawnActor<AStrikeHitTestCharacter>();
     auto* Movement = Player->GetCharacterMovement();
+    Movement->Activate();
+    Movement->SetMovementMode(MOVE_Walking);
     Player->SetActorRotation(FRotator(10.f, 0.f, 5.f));
     Movement->Velocity = FVector(123.f, 456.f, -90.f);
-    const FVector Contact = Player->GetActorLocation() + FVector(0.f, 50.f, 100.f);
-    Player->GetHit_Implementation(Contact, FVector::ForwardVector, 10.f);
-    TestTrue(TEXT("Faces contact using yaw only"), Player->GetActorRotation().Equals(FRotator(10.f, 90.f, 5.f)));
-    TestTrue(TEXT("Pushes away horizontally and preserves vertical speed"),
-        Movement->Velocity.Equals(FVector(0.f, -200.f, -90.f)));
+    const FVector Contact = Player->GetActorLocation() + FVector(50.f, 0.f, 100.f);
+    Player->GetHit_Implementation(Contact, FVector::RightVector, 10.f);
+    Movement->HandlePendingLaunch();
+    TestTrue(TEXT("Faces attack normal using yaw only"), Player->GetActorRotation().Equals(FRotator(10.f, 90.f, 5.f)));
+    TestTrue(TEXT("Launches away at configured speed and replaces vertical momentum"),
+        Movement->Velocity.Equals(FVector(0.f, -400.f, 350.f)));
+    TestTrue(TEXT("Launch enters falling mode"), Movement->IsFalling());
 
-    Player->GetHit_Implementation(Contact, FVector::ForwardVector, 20.f);
-    TestTrue(TEXT("Damage scales speed"), Movement->Velocity.Equals(FVector(0.f, -400.f, -90.f)));
-    Player->GetHit_Implementation(Contact, FVector::ForwardVector, 100.f);
-    TestTrue(TEXT("Large hits are capped"), Movement->Velocity.Equals(FVector(0.f, -600.f, -90.f)));
+    Player->GetHit_Implementation(Contact, FVector::RightVector, 20.f);
+    Movement->HandlePendingLaunch();
+    TestTrue(TEXT("Medium damage uses the same speed"), Movement->Velocity.Equals(FVector(0.f, -400.f, 350.f)));
+    Player->GetHit_Implementation(Contact, FVector::RightVector, 100.f);
+    Movement->HandlePendingLaunch();
+    TestTrue(TEXT("Heavy damage uses the same speed"), Movement->Velocity.Equals(FVector(0.f, -400.f, 350.f)));
     Player->GetHit_Implementation(Player->GetActorLocation(), FVector(-1.f, 0.f, 1.f), 10.f);
-    TestTrue(TEXT("Centered hit falls back to normal"), Movement->Velocity.Equals(FVector(200.f, 0.f, -90.f)));
+    Movement->HandlePendingLaunch();
+    TestTrue(TEXT("Centered hit falls back to normal"), Movement->Velocity.Equals(FVector(400.f, 0.f, 350.f)));
     Player->GetHit_Implementation(Player->GetActorLocation(), FVector::UpVector, 10.f);
-    TestTrue(TEXT("No horizontal source produces no arbitrary push"), Movement->Velocity.Equals(FVector(0.f, 0.f, -90.f)));
+    Movement->HandlePendingLaunch();
+    TestTrue(TEXT("Vertical hit recoils opposite current facing"), Movement->Velocity.Equals(FVector(400.f, 0.f, 350.f)));
     Player->GetHit_Implementation(Contact, FVector::ForwardVector, 0.f);
-    TestTrue(TEXT("Zero damage does not push"), Movement->Velocity.Equals(FVector(0.f, 0.f, -90.f)));
+    TestFalse(TEXT("Zero damage does not queue a launch"), Movement->HandlePendingLaunch());
+    TestTrue(TEXT("Zero damage preserves vertical speed"), Movement->Velocity.Equals(FVector(0.f, 0.f, 350.f)));
+    auto* DisabledPlayer = Fixture.GetTestWorld()->SpawnActor<AStrikeHitTestCharacter>();
+    auto* Toggle = FindFProperty<FBoolProperty>(DisabledPlayer->GetClass(), TEXT("bEnableKnockbackHitReaction"));
+    if (!TestNotNull(TEXT("Knockback reaction toggle"), Toggle)) return false;
+    Toggle->SetPropertyValue_InContainer(DisabledPlayer, false);
+    auto* DisabledMovement = DisabledPlayer->GetCharacterMovement();
+    DisabledMovement->Activate();
+    DisabledMovement->SetMovementMode(MOVE_Walking);
+    DisabledMovement->Velocity = FVector(123.f, 456.f, 0.f);
+    DisabledPlayer->GetHit_Implementation(DisabledPlayer->GetActorLocation(), FVector::RightVector, 20.f);
+    TestEqual(TEXT("Disabled reaction does not enter stagger"), DisabledPlayer->GetActionState(), EactionState::EAS_Unoccupied);
+    TestTrue(TEXT("Disabled reaction keeps facing"), DisabledPlayer->GetActorRotation().IsNearlyZero());
+    TestTrue(TEXT("Disabled reaction keeps momentum"), DisabledMovement->Velocity.Equals(FVector(123.f, 456.f, 0.f)));
+    TestFalse(TEXT("Disabled reaction does not queue launch"), DisabledMovement->HandlePendingLaunch());
+    TestEqual(TEXT("Disabled reaction still fires hit effects"), DisabledPlayer->HurtEvents, 1);
+    Fixture.ForwardErrorMessages(this);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPlayerHitLandingTest, "Rhya.Combat.Player.HitLanding",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FPlayerHitLandingTest::RunTest(const FString& Parameters)
+{
+    auto* Air = LoadObject<UAnimMontage>(nullptr, TEXT("/Game/Characters/ShinV2/AM_AirHitReact.AM_AirHitReact"));
+    auto* Land = LoadObject<UAnimMontage>(nullptr, TEXT("/Game/Characters/ShinV2/AM_LandHitReact.AM_LandHitReact"));
+    auto* Mesh = LoadObject<USkeletalMesh>(nullptr, TEXT("/Game/Characters/ShinV2/Shin.Shin"));
+    if (!TestNotNull(TEXT("Air montage"), Air) || !TestNotNull(TEXT("Landing montage"), Land)) return false;
+    if (!Mesh) return false;
+    FTestWorldWrapper Fixture;
+    if (!Fixture.CreateTestWorld(EWorldType::Game) || !Fixture.BeginPlayInTestWorld()) return false;
+    auto* Player = Fixture.GetTestWorld()->SpawnActor<AStrikeHitTestCharacter>();
+    Player->GetMesh()->SetSkeletalMeshAsset(Mesh);
+    Player->GetMesh()->SetAnimInstanceClass(UAnimInstance::StaticClass());
+    Player->GetMesh()->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+    FindFProperty<FObjectPropertyBase>(Player->GetClass(), TEXT("HitReactMontage"))->SetObjectPropertyValue_InContainer(Player, Air);
+    FindFProperty<FObjectPropertyBase>(Player->GetClass(), TEXT("LandHitReactMontage"))->SetObjectPropertyValue_InContainer(Player, Land);
+    auto* Movement = Player->GetCharacterMovement();
+    Movement->Activate();
+    Movement->SetMovementMode(MOVE_Walking);
+    auto* Anim = Player->GetMesh()->GetAnimInstance();
+    if (!TestNotNull(TEXT("Anim instance"), Anim)) return false;
+    const FHitResult GroundContact;
+    Player->Landed(GroundContact);
+    TestFalse(TEXT("Ordinary landing does not play hit recovery"), Anim->Montage_IsActive(Land));
+    Hit(Player);
+    Movement->HandlePendingLaunch();
+    Advance(Fixture, FMath::CeilToInt(Air->GetPlayLength() * 100.f) + 50);
+    TestEqual(TEXT("Air animation ending cannot unlock actions"), Player->GetActionState(), EactionState::EAS_Staggered);
+    TestTrue(TEXT("Air pose remains active past clip end"), Anim->Montage_IsActive(Air));
+    Player->Landed(GroundContact);
+    Advance(Fixture, 15);
+    TestFalse(TEXT("Ground contact holds pose before standing"), Anim->Montage_IsActive(Land));
+    TestFalse(TEXT("Actions remain locked during grounded hold"), Player->IsActionInputAllowed());
+    Hit(Player); // Cancel the grounded timer with a new launch.
+    Movement->HandlePendingLaunch();
+    Advance(Fixture, 30);
+    TestFalse(TEXT("Cancelled grounded timer cannot start get-up in the air"), Anim->Montage_IsActive(Land));
+    Player->Landed(GroundContact);
+    Advance(Fixture, 30);
+    TestTrue(TEXT("Grounded delay starts landing montage"), Anim->MontageInstances.ContainsByPredicate(
+        [Land](const FAnimMontageInstance* Instance) { return Instance && Instance->Montage == Land; }));
+    TestFalse(TEXT("Actions remain locked during landing"), Player->IsActionInputAllowed());
+    Hit(Player);
+    Movement->HandlePendingLaunch();
+    Advance(Fixture, 30);
+    TestEqual(TEXT("Interrupted landing cannot release a new airborne hit"), Player->GetActionState(), EactionState::EAS_Staggered);
+    Player->Landed(GroundContact);
+    Advance(Fixture, FMath::CeilToInt(Land->GetPlayLength() * 100.f) + 80);
+    TestTrue(TEXT("Landing completion restores actions"), Player->IsActionInputAllowed());
     Fixture.ForwardErrorMessages(this);
     return true;
 }
