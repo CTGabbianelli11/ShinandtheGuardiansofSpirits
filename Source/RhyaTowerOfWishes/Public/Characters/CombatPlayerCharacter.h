@@ -252,15 +252,15 @@ private:
 
     // Backward launch speed, independent of damage. Zero disables horizontal knockback.
     UPROPERTY(EditDefaultsOnly, Category = "Combat|Hit Reaction", meta = (ClampMin = "0.0", Units = "cm/s"))
-    float KnockbackSpeed = 400.f;
+    float KnockbackSpeed = 800.f;
 
     // Upward component of the launch velocity; independent of horizontal knockback.
     UPROPERTY(EditDefaultsOnly, Category = "Combat|Hit Reaction", meta = (ClampMin = "0.0", Units = "cm/s"))
-    float HitLaunchUpSpeed = 350.f;
+    float HitLaunchUpSpeed = 1500.f;
 
     // Hold the downed pose after ground contact before starting the get-up montage.
     UPROPERTY(EditDefaultsOnly, Category = "Combat|Hit Reaction", meta = (ClampMin = "0.0", Units = "s"))
-    float HitGroundedHoldDuration = 0.25f;
+    float HitGroundedHoldDuration = 0.1f;
 
     // Restart recovery when hit again during stagger.
     UPROPERTY(EditDefaultsOnly, Category = "Combat|Stagger")

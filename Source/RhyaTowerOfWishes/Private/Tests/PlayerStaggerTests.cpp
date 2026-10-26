@@ -389,24 +389,24 @@ bool FPlayerHitKnockbackTest::RunTest(const FString& Parameters)
     Movement->HandlePendingLaunch();
     TestTrue(TEXT("Faces attack normal using yaw only"), Player->GetActorRotation().Equals(FRotator(10.f, 90.f, 5.f)));
     TestTrue(TEXT("Launches away at configured speed and replaces vertical momentum"),
-        Movement->Velocity.Equals(FVector(0.f, -400.f, 350.f)));
+        Movement->Velocity.Equals(FVector(0.f, -800.f, 1500.f)));
     TestTrue(TEXT("Launch enters falling mode"), Movement->IsFalling());
 
     Player->GetHit_Implementation(Contact, FVector::RightVector, 20.f);
     Movement->HandlePendingLaunch();
-    TestTrue(TEXT("Medium damage uses the same speed"), Movement->Velocity.Equals(FVector(0.f, -400.f, 350.f)));
+    TestTrue(TEXT("Medium damage uses the same speed"), Movement->Velocity.Equals(FVector(0.f, -800.f, 1500.f)));
     Player->GetHit_Implementation(Contact, FVector::RightVector, 100.f);
     Movement->HandlePendingLaunch();
-    TestTrue(TEXT("Heavy damage uses the same speed"), Movement->Velocity.Equals(FVector(0.f, -400.f, 350.f)));
+    TestTrue(TEXT("Heavy damage uses the same speed"), Movement->Velocity.Equals(FVector(0.f, -800.f, 1500.f)));
     Player->GetHit_Implementation(Player->GetActorLocation(), FVector(-1.f, 0.f, 1.f), 10.f);
     Movement->HandlePendingLaunch();
-    TestTrue(TEXT("Centered hit falls back to normal"), Movement->Velocity.Equals(FVector(400.f, 0.f, 350.f)));
+    TestTrue(TEXT("Centered hit falls back to normal"), Movement->Velocity.Equals(FVector(800.f, 0.f, 1500.f)));
     Player->GetHit_Implementation(Player->GetActorLocation(), FVector::UpVector, 10.f);
     Movement->HandlePendingLaunch();
-    TestTrue(TEXT("Vertical hit recoils opposite current facing"), Movement->Velocity.Equals(FVector(400.f, 0.f, 350.f)));
+    TestTrue(TEXT("Vertical hit recoils opposite current facing"), Movement->Velocity.Equals(FVector(800.f, 0.f, 1500.f)));
     Player->GetHit_Implementation(Contact, FVector::ForwardVector, 0.f);
     TestFalse(TEXT("Zero damage does not queue a launch"), Movement->HandlePendingLaunch());
-    TestTrue(TEXT("Zero damage preserves vertical speed"), Movement->Velocity.Equals(FVector(0.f, 0.f, 350.f)));
+    TestTrue(TEXT("Zero damage preserves vertical speed"), Movement->Velocity.Equals(FVector(0.f, 0.f, 1500.f)));
     auto* DisabledPlayer = Fixture.GetTestWorld()->SpawnActor<AStrikeHitTestCharacter>();
     auto* Toggle = FindFProperty<FBoolProperty>(DisabledPlayer->GetClass(), TEXT("bEnableKnockbackHitReaction"));
     if (!TestNotNull(TEXT("Knockback reaction toggle"), Toggle)) return false;
@@ -448,6 +448,8 @@ bool FPlayerHitLandingTest::RunTest(const FString& Parameters)
     Movement->SetMovementMode(MOVE_Walking);
     auto* Anim = Player->GetMesh()->GetAnimInstance();
     if (!TestNotNull(TEXT("Anim instance"), Anim)) return false;
+    // Pin the test delay so timing coverage is independent of designer defaults.
+    FindFProperty<FFloatProperty>(Player->GetClass(), TEXT("HitGroundedHoldDuration"))->SetPropertyValue_InContainer(Player, 0.25f);
     const FHitResult GroundContact;
     Player->Landed(GroundContact);
     TestFalse(TEXT("Ordinary landing does not play hit recovery"), Anim->Montage_IsActive(Land));
